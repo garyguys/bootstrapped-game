@@ -3,14 +3,26 @@
    ============================================ */
 
 var PROJECT_TEMPLATES = [
-  { name: 'Landing Page',     payMin: 600,   payMax: 900,   complexity: 1,   daysMin: 3, daysMax: 4, repGain: 3  },
-  { name: 'UX Audit',         payMin: 800,   payMax: 1200,  complexity: 1,   daysMin: 2, daysMax: 3, repGain: 4  },
-  { name: 'Brand Identity',   payMin: 1200,  payMax: 1800,  complexity: 1.5, daysMin: 4, daysMax: 5, repGain: 5  },
-  { name: 'API Integration',  payMin: 1500,  payMax: 2200,  complexity: 2,   daysMin: 5, daysMax: 6, repGain: 6  },
-  { name: 'E-comm Store',     payMin: 2000,  payMax: 3000,  complexity: 2,   daysMin: 6, daysMax: 8, repGain: 8  },
-  { name: 'Web App MVP',      payMin: 3500,  payMax: 5000,  complexity: 3,   daysMin: 8, daysMax: 12, repGain: 12 },
-  { name: 'Mobile App',       payMin: 5000,  payMax: 8000,  complexity: 4,   daysMin: 12, daysMax: 18, repGain: 16 },
-  { name: 'SaaS Platform',    payMin: 8000,  payMax: 12000, complexity: 5,   daysMin: 18, daysMax: 28, repGain: 22 },
+  // Solo-able projects (complexity <= 1.5)
+  { name: 'Landing Page',     payMin: 600,   payMax: 900,   complexity: 1,   daysMin: 3, daysMax: 4, repGain: 3,  requiredRole: null, minTeam: 0, minRep: 0 },
+  { name: 'UX Audit',         payMin: 800,   payMax: 1200,  complexity: 1,   daysMin: 2, daysMax: 3, repGain: 4,  requiredRole: null, minTeam: 0, minRep: 0 },
+  { name: 'Brand Identity',   payMin: 1200,  payMax: 1800,  complexity: 1.5, daysMin: 4, daysMax: 5, repGain: 5,  requiredRole: 'designer', minTeam: 0, minRep: 0 },
+
+  // Team projects
+  { name: 'API Integration',  payMin: 1500,  payMax: 2200,  complexity: 2,   daysMin: 5, daysMax: 6, repGain: 6,  requiredRole: 'developer', minTeam: 1, minRep: 0 },
+  { name: 'E-comm Store',     payMin: 2000,  payMax: 3000,  complexity: 2,   daysMin: 6, daysMax: 8, repGain: 8,  requiredRole: null, minTeam: 1, minRep: 0 },
+  { name: 'Web App MVP',      payMin: 3500,  payMax: 5000,  complexity: 3,   daysMin: 8, daysMax: 12, repGain: 12, requiredRole: 'developer', minTeam: 2, minRep: 20 },
+  { name: 'Mobile App',       payMin: 5000,  payMax: 8000,  complexity: 4,   daysMin: 12, daysMax: 18, repGain: 16, requiredRole: 'developer', minTeam: 3, minRep: 40 },
+  { name: 'SaaS Platform',    payMin: 8000,  payMax: 12000, complexity: 5,   daysMin: 18, daysMax: 28, repGain: 22, requiredRole: 'developer', minTeam: 4, minRep: 60 },
+
+  // Premium reputation-gated projects (higher paying, require larger teams)
+  { name: 'Enterprise Portal',   payMin: 10000, payMax: 15000, complexity: 4,  daysMin: 14, daysMax: 20, repGain: 20, requiredRole: 'developer', minTeam: 4, minRep: 50 },
+  { name: 'AI Integration',      payMin: 12000, payMax: 18000, complexity: 5,  daysMin: 16, daysMax: 24, repGain: 25, requiredRole: 'devops',    minTeam: 5, minRep: 80 },
+  { name: 'Platform Migration',  payMin: 15000, payMax: 22000, complexity: 5,  daysMin: 20, daysMax: 30, repGain: 28, requiredRole: 'devops',    minTeam: 5, minRep: 100 },
+  { name: 'Full Rebrand Suite',  payMin: 8000,  payMax: 12000, complexity: 3,  daysMin: 10, daysMax: 16, repGain: 18, requiredRole: 'designer',  minTeam: 3, minRep: 50 },
+  { name: 'Marketing Campaign',  payMin: 6000,  payMax: 10000, complexity: 3,  daysMin: 8,  daysMax: 14, repGain: 15, requiredRole: 'marketer',  minTeam: 2, minRep: 40 },
+  { name: 'Security Audit',      payMin: 18000, payMax: 25000, complexity: 5,  daysMin: 22, daysMax: 35, repGain: 30, requiredRole: 'devops',    minTeam: 6, minRep: 120 },
+  { name: 'White-Label Product', payMin: 20000, payMax: 30000, complexity: 5,  daysMin: 25, daysMax: 40, repGain: 35, requiredRole: 'developer', minTeam: 7, minRep: 150 },
 ];
 
 // Client name parts for random generation
@@ -31,7 +43,7 @@ function generateClientName() {
 }
 
 function generateProject() {
-  // Filter templates by stage
+  // Filter templates by stage complexity AND reputation
   var maxComplexity = 1.5;
   if (G.stage === 'home_office') maxComplexity = 2;
   else if (G.stage === 'micro') maxComplexity = 3;
@@ -39,14 +51,14 @@ function generateProject() {
   else if (G.stage === 'scaleup' || G.stage === 'leader') maxComplexity = 5;
 
   var available = PROJECT_TEMPLATES.filter(function(t) {
-    return t.complexity <= maxComplexity;
+    return t.complexity <= maxComplexity && G.reputation >= t.minRep;
   });
 
   var template = randomChoice(available);
   var payout = randomInt(template.payMin, template.payMax);
   payout = Math.round(payout / 50) * 50;
 
-  return {
+  var project = {
     id: G.nextProjectId++,
     name: template.name,
     client: generateClientName(),
@@ -59,7 +71,11 @@ function generateProject() {
     expiresIn: 3,
     assignedTeam: [],
     founderWorking: false,
+    requiredRole: template.requiredRole,
+    minTeam: template.minTeam,
   };
+
+  return project;
 }
 
 function generatePipelineLeads() {
@@ -71,6 +87,23 @@ function generatePipelineLeads() {
   }
 }
 
+// Check if player has the required team to accept a project
+function canAcceptProject(project) {
+  // Check minimum team size
+  if (project.minTeam > 0 && G.team.length < project.minTeam) {
+    return { ok: false, reason: 'Need at least ' + project.minTeam + ' team member(s)' };
+  }
+  // Check required role
+  if (project.requiredRole) {
+    var hasRole = G.team.some(function(e) { return e.role.id === project.requiredRole; });
+    if (!hasRole) {
+      var roleName = project.requiredRole.charAt(0).toUpperCase() + project.requiredRole.slice(1);
+      return { ok: false, reason: 'Requires a ' + roleName + ' on your team' };
+    }
+  }
+  return { ok: true, reason: '' };
+}
+
 function acceptProject(projectId) {
   var idx = -1;
   for (var i = 0; i < G.pipeline.length; i++) {
@@ -78,7 +111,16 @@ function acceptProject(projectId) {
   }
   if (idx === -1) return false;
 
-  var project = G.pipeline.splice(idx, 1)[0];
+  var project = G.pipeline[idx];
+
+  // Check team requirements
+  var check = canAcceptProject(project);
+  if (!check.ok) {
+    addLog('Cannot accept ' + project.name + ': ' + check.reason, 'bad');
+    return false;
+  }
+
+  G.pipeline.splice(idx, 1);
   project.expiresIn = -1;
   G.activeProjects.push(project);
   addLog('Accepted project: ' + project.name + ' for ' + project.client, 'good');
@@ -103,6 +145,13 @@ function workOnProject(projectId) {
   var advance = 25;
   if (G.upgrades.indexOf('second_monitor') !== -1) {
     advance = 30;
+  }
+
+  // Energy affects work quality
+  if (G.energy < 25) {
+    advance = Math.round(advance * 0.75);
+  } else if (G.energy < 50) {
+    advance = Math.round(advance * 0.9);
   }
 
   project.progress = Math.min(100, project.progress + advance);
@@ -130,7 +179,6 @@ function advanceProjects() {
 
     // Check overdue
     if (p.daysActive > p.daysToComplete && p.progress < 100) {
-      // Overdue penalty: rep loss
       if (p.daysActive === p.daysToComplete + 1) {
         addLog(p.name + ' for ' + p.client + ' is OVERDUE! Reputation at risk.', 'bad');
       }

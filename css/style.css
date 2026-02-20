@@ -1,9 +1,8 @@
 /* ============================================
-   BOOTSTRAPPED v2 — Terminal Hacker Aesthetic
+   BOOTSTRAPPED v2.1 — Terminal Hacker Aesthetic
    ============================================ */
 
 :root {
-  /* Core palette */
   --bg-night:     #080c08;
   --bg-dawn:      #0a0e12;
   --bg-morning:   #0a100a;
@@ -30,15 +29,12 @@
   --btn-bg:       #112211;
   --btn-hover:    #1a3a1a;
 
-  /* Typography */
   --font-display: 'Orbitron', monospace, sans-serif;
   --font-body:    'Share Tech Mono', monospace;
 
-  /* Sizing */
   --tap-min: 44px;
 }
 
-/* Reset */
 *, *::before, *::after {
   margin: 0;
   padding: 0;
@@ -282,9 +278,6 @@ body {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-}
-
-.energy-bar-container {
   width: 80px;
   height: 10px;
   background: var(--grey-dark);
@@ -400,7 +393,6 @@ body {
   margin-bottom: 0.5rem;
 }
 
-/* Status Grid */
 .status-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -492,7 +484,7 @@ body {
 }
 
 #log-entries {
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
   font-size: 0.75rem;
   color: var(--green-dim);
@@ -513,6 +505,17 @@ body {
 .log-entry.log-bad { color: var(--red); }
 .log-entry.log-warn { color: var(--amber); }
 .log-entry.log-info { color: var(--cyan); }
+
+.log-day-separator {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  color: var(--grey);
+  letter-spacing: 0.15em;
+  padding: 0.4rem 0 0.2rem;
+  border-bottom: 1px dashed var(--panel-border);
+  margin-top: 0.3rem;
+}
 
 /* ============================================
    Project Cards
@@ -569,11 +572,30 @@ body {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .project-expires {
   font-size: 0.65rem;
   color: var(--red-dim);
+}
+
+.project-requirements {
+  font-size: 0.65rem;
+  color: var(--cyan-dim);
+  background: rgba(0, 229, 255, 0.05);
+  border-left: 2px solid var(--cyan-dim);
+  padding: 0.2rem 0.5rem;
+  margin: 0.3rem 0;
+}
+
+.project-lock-reason {
+  font-size: 0.65rem;
+  color: var(--red-dim);
+  background: rgba(255, 51, 51, 0.05);
+  border-left: 2px solid var(--red-dim);
+  padding: 0.2rem 0.5rem;
+  margin: 0.3rem 0;
 }
 
 .empty-state {
@@ -734,6 +756,129 @@ body {
 }
 
 /* ============================================
+   Confirmation Modal (small popup)
+   ============================================ */
+.confirmation-overlay {
+  z-index: 450;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.confirmation-content {
+  background: var(--panel-bg);
+  border: 1px solid var(--green-dark);
+  padding: 1rem 1.25rem;
+  max-width: 350px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.15);
+  animation: confirmSlideIn 0.2s ease-out;
+}
+
+@keyframes confirmSlideIn {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.confirmation-icon {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 900;
+  width: 1.5rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.confirmation-icon.confirmation-good { color: var(--green); }
+.confirmation-icon.confirmation-bad { color: var(--red); }
+.confirmation-icon.confirmation-warn { color: var(--amber); }
+.confirmation-icon.confirmation-info { color: var(--cyan); }
+
+.confirmation-text {
+  font-size: 0.8rem;
+  flex: 1;
+}
+
+.confirmation-text.confirmation-good { color: var(--green); }
+.confirmation-text.confirmation-bad { color: var(--red); }
+.confirmation-text.confirmation-warn { color: var(--amber); }
+.confirmation-text.confirmation-info { color: var(--cyan); }
+
+.confirmation-btn {
+  flex-shrink: 0;
+  min-width: 50px;
+  padding: 0.4rem 0.8rem;
+}
+
+/* ============================================
+   Negotiation Modal
+   ============================================ */
+.negotiation-content {
+  max-width: 380px;
+}
+
+.negotiation-info {
+  margin-bottom: 1rem;
+}
+
+.negotiation-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.negotiation-label {
+  font-size: 0.75rem;
+  color: var(--grey-light);
+}
+
+.negotiation-value {
+  font-size: 0.8rem;
+  color: var(--green);
+  font-weight: bold;
+}
+
+.negotiation-offer-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.negotiation-input {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  background: var(--grey-dark);
+  border: 1px solid var(--green-dark);
+  color: var(--green);
+  padding: 0.5rem 0.75rem;
+  width: 120px;
+  text-align: center;
+}
+
+.negotiation-input:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+}
+
+.negotiation-result {
+  font-size: 0.8rem;
+  min-height: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--green-dim);
+}
+
+.negotiation-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ============================================
    Overnight Events Panel
    ============================================ */
 .event-panel {
@@ -760,6 +905,11 @@ body {
 
 .event-item:last-child {
   border-bottom: none;
+}
+
+.overnight-dismiss {
+  margin-top: 0.5rem;
+  width: 100%;
 }
 
 /* ============================================
@@ -891,10 +1041,9 @@ body.time-dusk      { --bg-current: var(--bg-dusk); }
 .market-bar-focus {
   font-size: 0.65rem;
   color: var(--grey-light);
-  margin-left: 0.5rem;
+  margin-left: 0.75rem;
   flex: 1;
   text-align: left;
-  margin-left: 0.75rem;
 }
 
 .market-bar-pct {
@@ -918,16 +1067,68 @@ body.time-dusk      { --bg-current: var(--bg-dusk); }
 }
 
 /* ============================================
+   Competitor Detail Cards
+   ============================================ */
+.competitor-detail {
+  border-color: var(--panel-border);
+}
+
+.comp-acq-info {
+  margin: 0.4rem 0;
+}
+
+.comp-label {
+  font-size: 0.65rem;
+  color: var(--grey-light);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.comp-perk-item {
+  font-size: 0.7rem;
+  color: var(--green-dim);
+  padding: 0.15rem 0 0.15rem 0.5rem;
+}
+
+.comp-risk-item {
+  font-size: 0.7rem;
+  color: var(--red-dim);
+  padding: 0.15rem 0 0.15rem 0.5rem;
+}
+
+.comp-team-list {
+  margin: 0.5rem 0;
+}
+
+.comp-team-member {
+  font-size: 0.7rem;
+  color: var(--cyan-dim);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.poach-btn {
+  font-size: 0.6rem !important;
+  padding: 0.25rem 0.5rem !important;
+  min-height: 28px !important;
+}
+
+/* ============================================
    Utility
    ============================================ */
 .hidden { display: none !important; }
-.text-red { color: var(--red); }
-.text-amber { color: var(--amber); }
-.text-green { color: var(--green); }
-.text-cyan { color: var(--cyan); }
+.text-red { color: var(--red) !important; }
+.text-amber { color: var(--amber) !important; }
+.text-green { color: var(--green) !important; }
+.text-cyan { color: var(--cyan) !important; }
 
 /* ============================================
-   Responsive — small tweaks for wider screens
+   Responsive
    ============================================ */
 @media (min-width: 600px) {
   #game-main {

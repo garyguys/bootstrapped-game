@@ -17,8 +17,8 @@ function createDefaultState() {
   return {
     // Meta
     day: 1,
-    timeSlot: 0,        // 0=09:00, each action +1 slot (~90min each)
-    dayOfWeek: 0,       // 0=MON
+    timeSlot: 0,
+    dayOfWeek: 0,
 
     // Resources
     cash: 500,
@@ -49,8 +49,8 @@ function createDefaultState() {
     team: [],
     candidates: [],
     jobPosted: false,
-    lastJobPostDay: -99,  // Day of last job posting (cooldown: once per 7 days)
-    nextPayrollDay: 14,   // First payroll on day 14
+    lastJobPostDay: -99,
+    nextPayrollDay: 7,    // Weekly payroll
 
     // Competitors / Market
     competitors: [],
@@ -120,15 +120,15 @@ function deleteSave() {
 // --- Helpers ---
 
 function getTimeString() {
-  const hours = 9 + Math.floor(G.timeSlot * 1.5);
-  const minutes = (G.timeSlot * 1.5 % 1) * 60;
-  const hh = String(Math.min(hours, 23)).padStart(2, '0');
-  const mm = String(Math.round(minutes)).padStart(2, '0');
-  return `${DAYS_OF_WEEK[G.dayOfWeek]} ${hh}:${mm}`;
+  var hours = 9 + Math.floor(G.timeSlot * 1.5);
+  var minutes = (G.timeSlot * 1.5 % 1) * 60;
+  var hh = String(Math.min(hours, 23)).padStart(2, '0');
+  var mm = String(Math.round(minutes)).padStart(2, '0');
+  return DAYS_OF_WEEK[G.dayOfWeek] + ' ' + hh + ':' + mm;
 }
 
 function getTimeOfDay() {
-  const hour = 9 + Math.floor(G.timeSlot * 1.5);
+  var hour = 9 + Math.floor(G.timeSlot * 1.5);
   if (hour < 7)  return 'night';
   if (hour < 9)  return 'dawn';
   if (hour < 12) return 'morning';
@@ -139,12 +139,12 @@ function getTimeOfDay() {
 
 function addLog(text, type) {
   type = type || 'info';
-  G.log.unshift({ time: getTimeString(), text: text, type: type });
+  G.log.unshift({ day: G.day, time: getTimeString(), text: text, type: type });
   if (G.log.length > 80) G.log.length = 80;
 }
 
 function getStageName() {
-  const s = STAGES.find(function(st) { return st.id === G.stage; });
+  var s = STAGES.find(function(st) { return st.id === G.stage; });
   return s ? s.name : G.stage;
 }
 
@@ -159,4 +159,31 @@ function daysSinceLastPost() {
 function daysUntilCanPost() {
   var d = 7 - (G.day - G.lastJobPostDay);
   return d > 0 ? d : 0;
+}
+
+// --- Confirmation Modal System ---
+var _pendingAfterConfirmation = null;
+
+function showActionConfirmation(message, type, callback) {
+  var modal = document.getElementById('confirmation-modal');
+  var text = document.getElementById('confirmation-text');
+  var icon = document.getElementById('confirmation-icon');
+
+  var icons = { good: '+', bad: '!', warn: '~', info: '>' };
+  icon.textContent = icons[type] || '>';
+  icon.className = 'confirmation-icon confirmation-' + (type || 'info');
+  text.textContent = message;
+  text.className = 'confirmation-text confirmation-' + (type || 'info');
+  modal.style.display = 'flex';
+
+  _pendingAfterConfirmation = callback || null;
+
+  document.getElementById('confirmation-ok').onclick = function() {
+    modal.style.display = 'none';
+    if (_pendingAfterConfirmation) {
+      var cb = _pendingAfterConfirmation;
+      _pendingAfterConfirmation = null;
+      cb();
+    }
+  };
 }

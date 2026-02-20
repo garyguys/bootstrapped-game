@@ -34,7 +34,7 @@ var DAY_EVENTS = [
         var emp = randomChoice(G.team);
         emp.salary += 300;
         emp.loyalty = Math.min(100, emp.loyalty + 30);
-        addLog('Counter-offered ' + emp.name + '. They stayed, but expect $' + emp.salary + '/2wk now.', 'warn');
+        addLog('Counter-offered ' + emp.name + '. They stayed, but expect $' + emp.salary + '/wk now.', 'warn');
       } },
       { text: 'Let them go', effect: function() {
         if (G.team.length > 0) {
@@ -223,7 +223,6 @@ var OVERNIGHT_EVENTS = [
     condition: function() { return G.day >= 10; },
     weight: 1,
     effect: function() {
-      // Remove some pipeline leads
       if (G.pipeline.length > 1) {
         G.pipeline.pop();
       }
@@ -236,7 +235,6 @@ var OVERNIGHT_EVENTS = [
     condition: function() { return G.activeProjects.length > 0; },
     weight: 2,
     effect: function() {
-      // Set back a random project
       if (G.activeProjects.length > 0) {
         var p = randomChoice(G.activeProjects);
         p.progress = Math.max(0, p.progress - 10);
@@ -251,7 +249,6 @@ var OVERNIGHT_EVENTS = [
     condition: function() { return true; },
     weight: 2,
     effect: function() {
-      // Bonus lead
       if (G.pipeline.length < 5) {
         G.pipeline.push(generateProject());
         return 'A midnight idea turned into a new lead. Check your pipeline!';
@@ -313,11 +310,9 @@ var OVERNIGHT_EVENTS = [
 
 // --- Event System ---
 
-// Track which events fired recently to avoid repetition
 var _recentEventIds = [];
 
 function rollDayEvent() {
-  // 30% chance per action of a day event
   if (Math.random() > 0.30) return null;
 
   var eligible = DAY_EVENTS.filter(function(e) {
@@ -325,7 +320,6 @@ function rollDayEvent() {
   });
   if (eligible.length === 0) return null;
 
-  // Weighted random selection
   var totalWeight = 0;
   for (var i = 0; i < eligible.length; i++) totalWeight += eligible[i].weight;
   var roll = Math.random() * totalWeight;
@@ -342,7 +336,6 @@ function rollDayEvent() {
 }
 
 function rollOvernightEvents() {
-  // 1-2 overnight events per night
   var count = Math.random() < 0.4 ? 2 : 1;
   var fired = [];
 
@@ -385,7 +378,6 @@ function showDayEventModal(event) {
     btn.className = 'btn btn-small';
     btn.textContent = choice.text;
 
-    // Check if choice has requirements
     if (choice.requires && !choice.requires()) {
       btn.disabled = true;
       btn.classList.add('btn-secondary');
@@ -407,9 +399,8 @@ function showDayEventModal(event) {
   modal.style.display = 'flex';
 }
 
-// Called after each player action
+// Called after each player action (via afterAction -> confirmThenAfterAction)
 function checkForDayEvent() {
-  // Max 1 day event per day
   if (G.dayEventFired) return;
 
   var event = rollDayEvent();
