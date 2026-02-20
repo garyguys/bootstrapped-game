@@ -1,10 +1,9 @@
 /* ============================================
    main.js — Game Init, Screen Management
+   Character creation on new game.
    ============================================ */
 
 (function() {
-
-  // --- Screen Management ---
 
   function showScreen(screenId) {
     var screens = document.querySelectorAll('.screen');
@@ -15,27 +14,35 @@
     if (target) target.classList.add('active');
   }
 
-  // --- New Game ---
+  function showCharacterCreation() {
+    showScreen('screen-create');
+  }
 
-  function newGame() {
+  function startGameWithCharacter() {
+    var nameInput = document.getElementById('create-player-name');
+    var compInput = document.getElementById('create-company-name');
+    var genderSelect = document.getElementById('create-gender');
+
+    var playerName = (nameInput.value || '').trim() || 'Founder';
+    var companyName = (compInput.value || '').trim() || 'My Startup';
+    var gender = genderSelect ? genderSelect.value : 'male';
+
     G = createDefaultState();
     deleteSave();
 
-    // Generate initial pipeline leads
-    generatePipelineLeads();
+    G.player.name = playerName;
+    G.player.companyName = companyName;
+    G.player.gender = gender;
 
-    // Initialize market with competitors
+    generatePipelineLeads();
     initMarket();
 
-    // Opening log
-    addLog('Day 1 (MON) — You quit your job. $500 in the bank. Let\'s build something.', 'info');
+    addLog('Day 1 (MON) \u2014 ' + playerName + ' quit their job. $500 in the bank. Let\'s build ' + companyName + '.', 'info');
 
     saveGame();
     showScreen('screen-game');
     UI.renderAll();
   }
-
-  // --- Continue Game ---
 
   function continueGame() {
     if (!loadGame()) return;
@@ -43,19 +50,20 @@
     UI.renderAll();
   }
 
-  // --- Init ---
-
   function init() {
-    // Title screen buttons
-    document.getElementById('btn-new-game').addEventListener('click', newGame);
+    document.getElementById('btn-new-game').addEventListener('click', showCharacterCreation);
     document.getElementById('btn-continue').addEventListener('click', continueGame);
 
-    // Show continue button if save exists
+    var btnStart = document.getElementById('btn-start-game');
+    if (btnStart) btnStart.addEventListener('click', startGameWithCharacter);
+
+    var btnBack = document.getElementById('btn-back-title');
+    if (btnBack) btnBack.addEventListener('click', function() { showScreen('screen-title'); });
+
     if (hasSave()) {
       document.getElementById('btn-continue').style.display = '';
     }
 
-    // Tab switching
     var tabs = document.querySelectorAll('.tab');
     for (var i = 0; i < tabs.length; i++) {
       tabs[i].addEventListener('click', function() {
@@ -63,10 +71,8 @@
       });
     }
 
-    // End day button
     document.getElementById('btn-end-day').addEventListener('click', function() {
       if (G.gameOver) return;
-      // If already pushed through tonight, just end the day
       if (G.pushedThroughTonight) {
         G.pushedThroughTonight = false;
         endDay(true);
@@ -76,7 +82,6 @@
     });
   }
 
-  // Boot
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

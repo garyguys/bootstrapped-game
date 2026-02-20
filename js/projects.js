@@ -1,5 +1,6 @@
 /* ============================================
    projects.js — Project Generation & Delivery
+   Team assignment system. Deadline penalties.
    ============================================ */
 
 var PROJECT_TEMPLATES = [
@@ -15,7 +16,7 @@ var PROJECT_TEMPLATES = [
   { name: 'Mobile App',       payMin: 5000,  payMax: 8000,  complexity: 4,   daysMin: 12, daysMax: 18, repGain: 16, requiredRole: 'developer', minTeam: 3, minRep: 40 },
   { name: 'SaaS Platform',    payMin: 8000,  payMax: 12000, complexity: 5,   daysMin: 18, daysMax: 28, repGain: 22, requiredRole: 'developer', minTeam: 4, minRep: 60 },
 
-  // Premium reputation-gated projects (higher paying, require larger teams)
+  // Premium reputation-gated projects
   { name: 'Enterprise Portal',   payMin: 10000, payMax: 15000, complexity: 4,  daysMin: 14, daysMax: 20, repGain: 20, requiredRole: 'developer', minTeam: 4, minRep: 50 },
   { name: 'AI Integration',      payMin: 12000, payMax: 18000, complexity: 5,  daysMin: 16, daysMax: 24, repGain: 25, requiredRole: 'devops',    minTeam: 5, minRep: 80 },
   { name: 'Platform Migration',  payMin: 15000, payMax: 22000, complexity: 5,  daysMin: 20, daysMax: 30, repGain: 28, requiredRole: 'devops',    minTeam: 5, minRep: 100 },
@@ -25,7 +26,6 @@ var PROJECT_TEMPLATES = [
   { name: 'White-Label Product', payMin: 20000, payMax: 30000, complexity: 5,  daysMin: 25, daysMax: 40, repGain: 35, requiredRole: 'developer', minTeam: 7, minRep: 150 },
 ];
 
-// Client name parts for random generation
 var CLIENT_FIRST = ['Acme', 'Bright', 'Core', 'Nova', 'Edge', 'Peak', 'Flux', 'Zen', 'Pixel', 'Bolt', 'Nexus', 'Atlas',
                     'Lunar', 'Tide', 'Forge', 'Mint', 'Slate', 'Prism', 'Wren', 'Hive'];
 var CLIENT_LAST = ['Corp', 'Labs', 'Media', 'Tech', 'Studio', 'Digital', 'Co', 'Works', 'Group', 'HQ', 'AI', 'Ventures'];
@@ -43,7 +43,6 @@ function generateClientName() {
 }
 
 function generateProject() {
-  // Filter templates by stage complexity AND reputation
   var maxComplexity = 1.5;
   if (G.stage === 'home_office') maxComplexity = 2;
   else if (G.stage === 'micro') maxComplexity = 3;
@@ -58,7 +57,7 @@ function generateProject() {
   var payout = randomInt(template.payMin, template.payMax);
   payout = Math.round(payout / 50) * 50;
 
-  var project = {
+  return {
     id: G.nextProjectId++,
     name: template.name,
     client: generateClientName(),
@@ -73,9 +72,8 @@ function generateProject() {
     founderWorking: false,
     requiredRole: template.requiredRole,
     minTeam: template.minTeam,
+    deadlineExtensions: 0,
   };
-
-  return project;
 }
 
 function generatePipelineLeads() {
@@ -87,13 +85,10 @@ function generatePipelineLeads() {
   }
 }
 
-// Check if player has the required team to accept a project
 function canAcceptProject(project) {
-  // Check minimum team size
   if (project.minTeam > 0 && G.team.length < project.minTeam) {
     return { ok: false, reason: 'Need at least ' + project.minTeam + ' team member(s)' };
   }
-  // Check required role
   if (project.requiredRole) {
     var hasRole = G.team.some(function(e) { return e.role.id === project.requiredRole; });
     if (!hasRole) {
@@ -112,8 +107,6 @@ function acceptProject(projectId) {
   if (idx === -1) return false;
 
   var project = G.pipeline[idx];
-
-  // Check team requirements
   var check = canAcceptProject(project);
   if (!check.ok) {
     addLog('Cannot accept ' + project.name + ': ' + check.reason, 'bad');
@@ -130,10 +123,7 @@ function acceptProject(projectId) {
 function workOnProject(projectId) {
   var project = null;
   for (var i = 0; i < G.activeProjects.length; i++) {
-    if (G.activeProjects[i].id === projectId) {
-      project = G.activeProjects[i];
-      break;
-    }
+    if (G.activeProjects[i].id === projectId) { project = G.activeProjects[i]; break; }
   }
   if (!project) return false;
 
@@ -142,21 +132,18 @@ function workOnProject(projectId) {
     return false;
   }
 
-  var advance = 25;
+  // Player technical skill affects progress (now 1-10 scale)
+  var playerTech = G.player ? G.player.technical : 2;
+  var advance = 15 + (playerTech * 2); // 19% at TEC 2, 35% at TEC 10
   if (G.upgrades.indexOf('second_monitor') !== -1) {
-    advance = 30;
+    advance = Math.round(advance * 1.2);
   }
 
-  // Energy affects work quality
-  if (G.energy < 25) {
-    advance = Math.round(advance * 0.75);
-  } else if (G.energy < 50) {
-    advance = Math.round(advance * 0.9);
-  }
+  if (G.energy < 25) advance = Math.round(advance * 0.75);
+  else if (G.energy < 50) advance = Math.round(advance * 0.9);
 
   project.progress = Math.min(100, project.progress + advance);
   project.founderWorking = true;
-
   addLog('Worked on ' + project.name + ' — ' + Math.round(project.progress) + '% complete', 'good');
   return true;
 }
@@ -166,24 +153,47 @@ function advanceProjects() {
     var p = G.activeProjects[i];
     p.daysActive += 1;
 
-    // Team auto-work: sum contributions from team members
+    // Team auto-work
     var teamBonus = getTeamProjectBonus(p);
     if (teamBonus > 0) {
       p.progress = Math.min(100, p.progress + teamBonus);
     }
 
-    // Faster internet upgrade
-    if (G.upgrades.indexOf('faster_internet') !== -1) {
-      p.progress = Math.min(100, p.progress + 2);
-    }
-
-    // Check overdue
+    // Check overdue warnings
     if (p.daysActive > p.daysToComplete && p.progress < 100) {
       if (p.daysActive === p.daysToComplete + 1) {
         addLog(p.name + ' for ' + p.client + ' is OVERDUE! Reputation at risk.', 'bad');
       }
     }
   }
+}
+
+// Check for missed deadlines — project cancellation or extension
+function checkMissedDeadlines() {
+  var remaining = [];
+  for (var i = 0; i < G.activeProjects.length; i++) {
+    var p = G.activeProjects[i];
+    var overdueDays = p.daysActive - p.daysToComplete;
+
+    if (overdueDays >= 3 && p.progress < 100) {
+      // 70% chance of cancellation, 30% chance client gives 3 more days
+      if (Math.random() < 0.70) {
+        var repLoss = p.repGain;
+        G.reputation = Math.max(0, G.reputation - repLoss);
+        addLog(p.client + ' cancelled ' + p.name + ' due to missed deadline! -' + repLoss + ' rep.', 'bad');
+        G.overnightEvents.push(p.client + ' cancelled ' + p.name + ' (-' + repLoss + ' rep)');
+        // Don't add to remaining — project is gone
+        continue;
+      } else if (!p._extensionGranted) {
+        p._extensionGranted = true;
+        p.daysToComplete += 3;
+        addLog(p.client + ' is giving you 3 more days on ' + p.name + '. Don\'t blow it.', 'warn');
+        G.overnightEvents.push(p.client + ' extended deadline on ' + p.name + ' by 3 days');
+      }
+    }
+    remaining.push(p);
+  }
+  G.activeProjects = remaining;
 }
 
 function checkProjectDeliveries() {
@@ -205,24 +215,25 @@ function checkProjectDeliveries() {
     var d = delivered[j];
     var payout = d.payout;
 
-    // Referral partner perk: -15% on revenue
     var refPerk = G.perks.find(function(p) { return p.id === 'referral_partner'; });
-    if (refPerk) {
-      payout = Math.round(payout * 0.85);
-    }
+    if (refPerk) payout = Math.round(payout * 0.85);
 
     var repGain = d.repGain;
-
-    // Perfectionist perk on team: +2 rep
     var hasPerfectionist = G.team.some(function(e) { return e.perk && e.perk.id === 'perfectionist'; });
-    if (hasPerfectionist) {
-      repGain += 2;
-    }
+    if (hasPerfectionist) repGain += 2;
 
     G.cash += payout;
     G.reputation += repGain;
     G.totalRevenue += payout;
     G.completedProjects.push(d);
+
+    // Unassign team members from this project
+    for (var k = 0; k < G.team.length; k++) {
+      if (G.team[k].assignedProjectId === d.id) {
+        G.team[k].assignedProjectId = null;
+      }
+    }
+
     addLog('Delivered: ' + d.name + ' for ' + d.client + ' — +$' + payout + ', +' + repGain + ' rep', 'good');
     G.overnightEvents.push('Delivered ' + d.name + ' to ' + d.client + ' (+$' + payout + ')');
   }

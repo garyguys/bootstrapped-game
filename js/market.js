@@ -1,5 +1,7 @@
 /* ============================================
    market.js — Competitors, Market Share, Acquisitions
+   Now 4-10 companies. Weekly failures/acquisitions.
+   Renamed Anthropic Systems to Synthex Systems.
    ============================================ */
 
 var COMPETITOR_ARCHETYPES = [
@@ -8,7 +10,7 @@ var COMPETITOR_ARCHETYPES = [
     shareBase: 25, growthRate: 0.3, failChance: 0.01, canAcquire: true, focus: 'Enterprise AI solutions',
     acqPerks: ['Access to enterprise client list (+8 rep)', 'Established sales pipeline (+3 leads)'],
     acqRisks: ['Major culture clash (-15 loyalty to team)', 'Legacy tech debt (1 project slows down)'] },
-  { name: 'Anthropic Systems', style: 'megacorp',   desc: 'Leading AI safety research lab turned product company.',
+  { name: 'Synthex Systems',   style: 'megacorp',   desc: 'Leading AI safety research lab turned product company.',
     shareBase: 20, growthRate: 0.4, failChance: 0.01, canAcquire: true, focus: 'Safe AI infrastructure',
     acqPerks: ['Top-tier research talent (+10 rep)', 'Safety certification prestige'],
     acqRisks: ['Expensive team expectations (+20% payroll)', 'Slow integration process'] },
@@ -30,6 +32,10 @@ var COMPETITOR_ARCHETYPES = [
     shareBase: 8,  growthRate: 1.2, failChance: 0.12, canAcquire: false, focus: 'Growth marketing tools',
     acqPerks: ['Growth marketing expertise (+4 rep)', 'Large user base data'],
     acqRisks: ['Unsustainable costs', 'Possible legal issues'] },
+  { name: 'Horizon Ventures',  style: 'vc_funded',  desc: 'Enterprise SaaS play. Big sales team.',
+    shareBase: 9,  growthRate: 0.7, failChance: 0.07, canAcquire: false, focus: 'Enterprise SaaS',
+    acqPerks: ['Enterprise sales playbook (+5 rep)', 'CRM data'],
+    acqRisks: ['Long sales cycles', 'High overhead'] },
 
   // Scrappy underbidders
   { name: 'Grindhaus',        style: 'budget',     desc: 'Budget underbidder. Steals leads, low quality.',
@@ -66,6 +72,14 @@ var COMPETITOR_ARCHETYPES = [
     shareBase: 2,  growthRate: 0.5, failChance: 0.10, canAcquire: false, focus: 'AI governance',
     acqPerks: ['Ethics certification (+5 rep)', 'Government contracts access'],
     acqRisks: ['Regulatory complexity', 'Slow-moving clients'] },
+  { name: 'NeuraBridge',      style: 'niche',      desc: 'Brain-computer interface startup. Very early stage.',
+    shareBase: 2,  growthRate: 0.8, failChance: 0.18, canAcquire: false, focus: 'Neural interfaces',
+    acqPerks: ['Cutting-edge research (+6 rep)', 'Patent portfolio'],
+    acqRisks: ['Extremely experimental', 'Regulatory uncertainty'] },
+  { name: 'GreenBit',         style: 'niche',      desc: 'Sustainable computing startup. Carbon-neutral AI.',
+    shareBase: 3,  growthRate: 0.5, failChance: 0.09, canAcquire: false, focus: 'Green AI infrastructure',
+    acqPerks: ['ESG credentials (+4 rep)', 'Government grants access'],
+    acqRisks: ['Higher operating costs', 'Limited compute budget'] },
 ];
 
 var _nextCompetitorId = 1;
@@ -75,23 +89,47 @@ function initMarket() {
   G.acquiredStartups = [];
   G.marketEvents = [];
 
+  // Start with 4-10 companies
+  var targetCount = randomInt(4, 10);
+
   var megacorps = COMPETITOR_ARCHETYPES.filter(function(a) { return a.style === 'megacorp'; });
   var vcFunded = COMPETITOR_ARCHETYPES.filter(function(a) { return a.style === 'vc_funded'; });
   var budgets = COMPETITOR_ARCHETYPES.filter(function(a) { return a.style === 'budget'; });
   var niches = COMPETITOR_ARCHETYPES.filter(function(a) { return a.style === 'niche'; });
 
+  // Always at least 1 megacorp and 1 VC-funded
   addCompetitor(randomChoice(megacorps));
   addCompetitor(randomChoice(vcFunded));
-  addCompetitor(randomChoice(budgets));
-  addCompetitor(randomChoice(niches));
-  if (Math.random() < 0.5) {
-    addCompetitor(randomChoice(niches));
+
+  var remaining = targetCount - 2;
+
+  // Add 0-1 more megacorp
+  if (remaining > 0 && Math.random() < 0.4) {
+    var m2 = randomChoice(megacorps);
+    if (addCompetitor(m2)) remaining--;
+  }
+
+  // Add 0-1 budget
+  if (remaining > 0 && Math.random() < 0.5) {
+    if (addCompetitor(randomChoice(budgets))) remaining--;
+  }
+
+  // Add 0-1 more VC-funded
+  if (remaining > 0 && Math.random() < 0.4) {
+    var v2 = randomChoice(vcFunded);
+    if (addCompetitor(v2)) remaining--;
+  }
+
+  // Fill rest with niches
+  var shuffledNiches = niches.slice().sort(function() { return Math.random() - 0.5; });
+  for (var i = 0; i < remaining && i < shuffledNiches.length; i++) {
+    addCompetitor(shuffledNiches[i]);
   }
 }
 
 function addCompetitor(archetype) {
   for (var i = 0; i < G.competitors.length; i++) {
-    if (G.competitors[i].name === archetype.name) return;
+    if (G.competitors[i].name === archetype.name) return false;
   }
 
   G.competitors.push({
@@ -110,8 +148,10 @@ function addCompetitor(archetype) {
     acqPerks: archetype.acqPerks || [],
     acqRisks: archetype.acqRisks || [],
     scouted: false,
+    scoutLevel: 0,
     scoutedTeam: null,
   });
+  return true;
 }
 
 function getPlayerMarketShare() {
@@ -132,20 +172,23 @@ function tickMarket() {
 
     c.daysActive += 1;
 
+    // Weekly growth and failure check
     if (c.daysActive % 7 === 0) {
       var growth = c.growthRate * (1 + Math.random() * 0.5);
       c.share = Math.max(1, c.share + growth);
 
+      // Failure check — smaller companies fail more often
       if (Math.random() < c.failChance) {
         c.alive = false;
         deadCompetitors.push(c);
       }
 
-      if (c.canAcquire && c.daysActive % 21 === 0) {
+      // Megacorps and VC-funded can acquire niche startups
+      if (c.canAcquire && c.daysActive % 14 === 0) {
         var nicheTargets = G.competitors.filter(function(x) {
-          return x.alive && x.style === 'niche' && x.id !== c.id;
+          return x.alive && (x.style === 'niche' || (x.style === 'budget' && x.share < 4)) && x.id !== c.id;
         });
-        if (nicheTargets.length > 0 && Math.random() < 0.3) {
+        if (nicheTargets.length > 0 && Math.random() < 0.35) {
           var target = randomChoice(nicheTargets);
           c.share += Math.floor(target.share * 0.7);
           target.alive = false;
@@ -159,6 +202,7 @@ function tickMarket() {
     }
   }
 
+  // Process dead competitors
   for (var j = 0; j < deadCompetitors.length; j++) {
     var dead = deadCompetitors[j];
     var msg2 = dead.name + ' has collapsed! Their clients are flooding the market.';
@@ -171,9 +215,23 @@ function tickMarket() {
     }
   }
 
+  // Maintain 4-10 alive companies — spawn new ones if below 4
   var aliveCount = G.competitors.filter(function(c) { return c.alive; }).length;
-  if (aliveCount < 3 && G.day % 7 === 0) {
+  if (aliveCount < 4 && G.day % 5 === 0) {
     spawnNewCompetitor();
+  }
+
+  // Cap at 10 alive — no new spawns if at 10
+  // Additional market events: random VC funding rounds, pivots
+  if (G.day % 14 === 0 && Math.random() < 0.4) {
+    var aliveVc = G.competitors.filter(function(c) { return c.alive && c.style === 'vc_funded'; });
+    if (aliveVc.length > 0) {
+      var funded = randomChoice(aliveVc);
+      funded.share += randomInt(2, 5);
+      var fundMsg = funded.name + ' raised a new funding round! They\'re growing faster.';
+      G.marketEvents.push({ day: G.day, text: fundMsg });
+      G.overnightEvents.push(fundMsg);
+    }
   }
 }
 
@@ -183,6 +241,9 @@ function spawnNewCompetitor() {
     return existingNames.indexOf(a.name) === -1;
   });
   if (available.length === 0) return;
+
+  var aliveCount = G.competitors.filter(function(c) { return c.alive; }).length;
+  if (aliveCount >= 10) return;
 
   var arch = randomChoice(available);
   addCompetitor(arch);
@@ -201,7 +262,6 @@ function getAcquirableStartups() {
 }
 
 function getAcquisitionCost(competitor) {
-  // Minimum $50k, scales up with share and time
   var baseCost = 50000;
   var shareCost = competitor.share * 5000;
   var ageCost = competitor.daysActive * 200;
@@ -224,7 +284,6 @@ function acquireStartup(competitorId) {
   G.cash -= cost;
   target.alive = false;
 
-  // Gain their market share as rep
   G.reputation += Math.floor(target.share * 2);
   var bonusRep = Math.floor(target.share * 1.5);
   G.reputation += bonusRep;

@@ -1,10 +1,11 @@
 /* ============================================
    ui.js — All DOM Updates & Rendering
+   People cards, pixel art avatars, fog of war,
+   team assignment, patience bar, management dash.
    ============================================ */
 
 var UI = {
 
-  // --- Render Everything ---
   renderAll: function() {
     this.renderHeader();
     this.renderDashboard();
@@ -21,15 +22,15 @@ var UI = {
     document.getElementById('header-day').textContent = 'DAY ' + G.day;
     document.getElementById('header-clock').textContent = getTimeString();
 
+    // Company name
+    var compEl = document.getElementById('header-company');
+    if (compEl && G.player) compEl.textContent = G.player.companyName;
+
     var cashEl = document.getElementById('header-cash');
     cashEl.textContent = '$' + G.cash.toLocaleString();
-    if (G.cash < 100) {
-      cashEl.classList.add('danger');
-    } else {
-      cashEl.classList.remove('danger');
-    }
+    if (G.cash < 100) cashEl.classList.add('danger');
+    else cashEl.classList.remove('danger');
 
-    // AP pips
     var apEl = document.getElementById('header-ap');
     var pips = '';
     for (var i = 0; i < G.apMax; i++) {
@@ -37,16 +38,12 @@ var UI = {
     }
     apEl.textContent = pips;
 
-    // Energy bar
     var pct = Math.round((G.energy / G.energyMax) * 100);
     var bar = document.getElementById('header-energy-bar');
     bar.style.width = pct + '%';
     bar.classList.remove('low', 'critical');
-    if (pct < 25) {
-      bar.classList.add('critical');
-    } else if (pct < 50) {
-      bar.classList.add('low');
-    }
+    if (pct < 25) bar.classList.add('critical');
+    else if (pct < 50) bar.classList.add('low');
     document.getElementById('header-energy-text').textContent = G.energy;
   },
 
@@ -57,7 +54,15 @@ var UI = {
     document.getElementById('status-revenue').textContent = '$' + G.totalRevenue.toLocaleString();
     document.getElementById('status-team').textContent = G.team.length;
 
-    // Active perks
+    // Player skills
+    var playerSkillsEl = document.getElementById('status-player-skills');
+    if (playerSkillsEl && G.player) {
+      playerSkillsEl.innerHTML =
+        this.skillBar('TEC', G.player.technical, 10) +
+        this.skillBar('COM', G.player.communication, 10) +
+        this.skillBar('REL', G.player.reliability, 10);
+    }
+
     var perksEl = document.getElementById('status-perks');
     if (perksEl) {
       if (G.perks.length === 0) {
@@ -69,7 +74,6 @@ var UI = {
       }
     }
 
-    // Energy status indicator
     var energyStatusEl = document.getElementById('status-energy');
     if (energyStatusEl) {
       var status = getEnergyStatus();
@@ -79,14 +83,13 @@ var UI = {
       energyStatusEl.className = 'status-value ' + statusColors[status];
     }
 
-    // Ops AP bonus indicator
     var opsBonus = Math.min(2, Math.floor(getOpsTeamCount() / 2));
     var opsEl = document.getElementById('status-ops-bonus');
     if (opsEl) {
       opsEl.textContent = opsBonus > 0 ? '+' + opsBonus + ' AP from ops team' : 'Hire PM/Sales/Marketing for +AP';
     }
 
-    // Actions
+    // Actions (management focused)
     var actionsContainer = document.getElementById('dashboard-actions');
     var actions = getDashboardActions();
     actionsContainer.innerHTML = '';
@@ -124,11 +127,10 @@ var UI = {
     for (var i = 0; i < count; i++) {
       var entry = G.log[i];
 
-      // Day separator
       if (entry.day !== lastDay) {
         var separator = document.createElement('div');
         separator.className = 'log-day-separator';
-        separator.textContent = '— Day ' + entry.day + ' —';
+        separator.textContent = '\u2014 Day ' + entry.day + ' \u2014';
         container.appendChild(separator);
         lastDay = entry.day;
       }
@@ -140,7 +142,7 @@ var UI = {
     }
   },
 
-  // --- Overnight Events with Day Stamp ---
+  // --- Overnight Events (only from last night) ---
   renderOvernightEvents: function() {
     var panel = document.getElementById('overnight-events');
     if (G.overnightEvents.length === 0) {
@@ -148,7 +150,7 @@ var UI = {
       return;
     }
     panel.style.display = 'block';
-    var html = '<h3>OVERNIGHT — Day ' + (G.day - 1) + ' to Day ' + G.day + '</h3>';
+    var html = '<h3>OVERNIGHT \u2014 Day ' + (G.day - 1) + ' to Day ' + G.day + '</h3>';
     for (var i = 0; i < G.overnightEvents.length; i++) {
       html += '<div class="event-item">' + escHtml(G.overnightEvents[i]) + '</div>';
     }
@@ -156,7 +158,7 @@ var UI = {
     panel.innerHTML = html;
   },
 
-  // --- Projects Tab ---
+  // --- Projects Tab (now includes work/accept actions) ---
   renderProjects: function() {
     var pipelineEl = document.getElementById('project-pipeline');
     var activeEl = document.getElementById('project-active');
@@ -174,7 +176,7 @@ var UI = {
 
     // Active
     if (G.activeProjects.length === 0) {
-      activeEl.innerHTML = '<div class="empty-state">No active projects. Accept a lead to start working.</div>';
+      activeEl.innerHTML = '<div class="empty-state">No active projects.</div>';
     } else {
       activeEl.innerHTML = '';
       for (var j = 0; j < G.activeProjects.length; j++) {
@@ -208,7 +210,6 @@ var UI = {
     card.className = 'project-card';
     var complexLabel = project.complexity <= 1.5 ? 'Solo-able' : 'Needs team';
 
-    // Show requirements
     var reqParts = [];
     if (project.minTeam > 0) reqParts.push(project.minTeam + '+ team');
     if (project.requiredRole) {
@@ -218,17 +219,13 @@ var UI = {
     var reqText = reqParts.length > 0 ? '<div class="project-requirements">' + reqParts.join(' | ') + '</div>' : '';
 
     var check = canAcceptProject(project);
-    var canAcceptClass = check.ok ? '' : ' project-locked';
 
     card.innerHTML =
       '<div class="project-card-header">' +
         '<span class="project-name">' + escHtml(project.name) + '</span>' +
         '<span class="project-payout">$' + project.payout.toLocaleString() + '</span>' +
       '</div>' +
-      '<div class="project-meta">' +
-        escHtml(project.client) + ' &mdash; ' +
-        project.daysToComplete + ' days &mdash; ' + complexLabel +
-      '</div>' +
+      '<div class="project-meta">' + escHtml(project.client) + ' &mdash; ' + project.daysToComplete + ' days &mdash; ' + complexLabel + '</div>' +
       reqText +
       '<div class="project-expires">Expires in ' + project.expiresIn + ' day' + (project.expiresIn !== 1 ? 's' : '') + '</div>' +
       (check.ok ? '' : '<div class="project-lock-reason">' + escHtml(check.reason) + '</div>') +
@@ -252,11 +249,29 @@ var UI = {
     var daysLeft = project.daysToComplete - project.daysActive;
     var overdueClass = daysLeft <= 0 ? ' text-red' : '';
 
-    // Show required role info
     var reqInfo = '';
     if (project.requiredRole) {
       var roleName = project.requiredRole.charAt(0).toUpperCase() + project.requiredRole.slice(1);
       reqInfo = '<div class="project-requirements">Spec: ' + roleName + '</div>';
+    }
+
+    // Show assigned team members
+    var assignedHtml = '';
+    if (project.assignedTeam && project.assignedTeam.length > 0) {
+      var assignedNames = [];
+      for (var t = 0; t < project.assignedTeam.length; t++) {
+        var emp = findEmployee(project.assignedTeam[t]);
+        if (emp) assignedNames.push(emp.name);
+      }
+      if (assignedNames.length > 0) {
+        assignedHtml = '<div class="project-assigned">Assigned: ' + escHtml(assignedNames.join(', ')) + '</div>';
+      }
+    }
+
+    // Deadline extension warning
+    var extWarning = '';
+    if (project.deadlineExtensions && project.deadlineExtensions > 0) {
+      extWarning = '<div class="project-ext-warn">Extended ' + project.deadlineExtensions + 'x (-rep)</div>';
     }
 
     card.innerHTML =
@@ -266,13 +281,14 @@ var UI = {
       '</div>' +
       '<div class="project-meta">' + escHtml(project.client) +
         ' &mdash; <span class="' + overdueClass + '">Day ' + project.daysActive + '/' + project.daysToComplete + '</span></div>' +
-      reqInfo +
+      reqInfo + assignedHtml + extWarning +
       '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + Math.round(project.progress) + '%"></div></div>' +
       '<div class="project-meta">' + Math.round(project.progress) + '% complete</div>' +
       '<div class="project-actions"></div>';
 
     var actionsDiv = card.querySelector('.project-actions');
 
+    // Work button (solo projects)
     if (canWork) {
       var btnWork = document.createElement('button');
       btnWork.className = 'btn btn-primary btn-small';
@@ -282,16 +298,75 @@ var UI = {
       actionsDiv.appendChild(btnWork);
     }
 
+    // Client call for near-deadline
     if (daysLeft <= 2 && project.progress < 100) {
+      var repCost = Math.min(5, ((project.deadlineExtensions || 0) + 1) * 2);
       var btnCall = document.createElement('button');
       btnCall.className = 'btn btn-secondary btn-small';
-      btnCall.textContent = 'CALL (+2 DAYS)';
+      btnCall.textContent = 'EXTEND (+2d, -' + repCost + ' rep)';
       btnCall.disabled = !canAct(AP_COSTS.client_call);
       btnCall.onclick = function() { actionClientCall(project.id); };
       actionsDiv.appendChild(btnCall);
     }
 
+    // Assign team member dropdown
+    if (project.complexity > 1.5 && G.team.length > 0) {
+      var btnAssign = document.createElement('button');
+      btnAssign.className = 'btn btn-secondary btn-small';
+      btnAssign.textContent = 'ASSIGN TEAM';
+      btnAssign.onclick = (function(proj) {
+        return function() { UI.showAssignModal(proj); };
+      })(project);
+      actionsDiv.appendChild(btnAssign);
+    }
+
     return card;
+  },
+
+  // --- Team Assignment Modal ---
+  showAssignModal: function(project) {
+    var modal = document.getElementById('event-modal');
+    var title = document.getElementById('event-modal-title');
+    var desc = document.getElementById('event-modal-desc');
+    var choices = document.getElementById('event-modal-choices');
+
+    title.textContent = 'ASSIGN TEAM TO ' + project.name;
+    desc.textContent = 'Select team members to work on this project. Only developers, designers, and devops contribute to progress.';
+    choices.innerHTML = '';
+
+    var devRoles = ['developer', 'designer', 'devops'];
+
+    for (var i = 0; i < G.team.length; i++) {
+      var emp = G.team[i];
+      if (devRoles.indexOf(emp.role.id) === -1) continue;
+
+      var isAssigned = project.assignedTeam && project.assignedTeam.indexOf(emp.id) !== -1;
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
+      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' (TEC:' + emp.technical + ')';
+      btn.onclick = (function(empId, projId, assigned) {
+        return function() {
+          if (assigned) {
+            unassignFromProject(empId);
+          } else {
+            assignToProject(empId, projId);
+          }
+          UI.showAssignModal(project); // Refresh
+        };
+      })(emp.id, project.id, isAssigned);
+      choices.appendChild(btn);
+    }
+
+    var btnDone = document.createElement('button');
+    btnDone.className = 'btn btn-small btn-danger';
+    btnDone.textContent = 'DONE';
+    btnDone.onclick = function() {
+      modal.style.display = 'none';
+      UI.renderAll();
+    };
+    choices.appendChild(btnDone);
+
+    modal.style.display = 'flex';
   },
 
   // --- Team Tab ---
@@ -299,7 +374,6 @@ var UI = {
     var rosterEl = document.getElementById('team-roster');
     var candidatesEl = document.getElementById('team-candidates');
 
-    // Payroll info
     var payrollEl = document.getElementById('team-payroll-info');
     if (payrollEl) {
       if (G.team.length > 0) {
@@ -326,7 +400,7 @@ var UI = {
     // Candidates
     if (G.candidates.length === 0) {
       var hint = G.jobPosted
-        ? '<div class="empty-state">Job posted — candidates will apply tomorrow.</div>'
+        ? '<div class="empty-state">Job posted \u2014 candidates will apply tomorrow.</div>'
         : '<div class="empty-state">Post a job listing to attract candidates.' +
           (canPostJob() ? '' : ' (Cooldown: ' + daysUntilCanPost() + 'd)') + '</div>';
       candidatesEl.innerHTML = hint;
@@ -340,31 +414,77 @@ var UI = {
 
   createEmployeeCard: function(emp) {
     var card = document.createElement('div');
-    card.className = 'project-card';
+    card.className = 'project-card person-card';
+    card.style.cursor = 'pointer';
 
     var loyaltyColor = emp.loyalty > 50 ? 'text-green' : emp.loyalty > 25 ? 'text-amber' : 'text-red';
     var perkText = emp.perk ? '<div class="candidate-perk">' + escHtml(emp.perk.name) + ': ' + escHtml(emp.perk.desc) + '</div>' : '';
     var flawText = emp.flawRevealed && emp.flaw ? '<div class="candidate-flaw">' + escHtml(emp.flaw.name) + ': ' + escHtml(emp.flaw.desc) + '</div>' : '';
 
-    card.innerHTML =
-      '<div class="project-card-header">' +
-        '<span class="project-name">' + escHtml(emp.name) + '</span>' +
-        '<span class="candidate-role">' + escHtml(emp.levelName + ' ' + emp.role.name) + '</span>' +
-      '</div>' +
-      '<div class="skill-bars">' +
-        this.skillBar('TEC', emp.technical, 5) +
-        this.skillBar('COM', emp.communication, 5) +
-        this.skillBar('REL', emp.reliability, 5) +
-      '</div>' +
-      '<div class="project-meta">Salary: $' + emp.salary + '/wk &mdash; Loyalty: <span class="' + loyaltyColor + '">' + emp.loyalty + '</span> &mdash; ' + emp.daysEmployed + ' days</div>' +
-      perkText + flawText +
-      '<div class="project-actions"></div>';
+    // Assignment info
+    var assignInfo = '';
+    if (emp.assignedProjectId) {
+      for (var p = 0; p < G.activeProjects.length; p++) {
+        if (G.activeProjects[p].id === emp.assignedProjectId) {
+          assignInfo = '<div class="project-requirements">Working on: ' + escHtml(G.activeProjects[p].name) + '</div>';
+          break;
+        }
+      }
+    }
+
+    // Summary view (collapsed)
+    var summaryHtml =
+      '<div class="person-summary">' +
+        '<div class="person-avatar-slot" data-person-id="' + emp.id + '"></div>' +
+        '<div class="person-info">' +
+          '<div class="project-card-header">' +
+            '<span class="project-name">' + escHtml(emp.name) + '</span>' +
+            '<span class="candidate-role">' + escHtml(emp.levelName + ' ' + emp.role.name) + '</span>' +
+          '</div>' +
+          '<div class="skill-bars">' +
+            this.skillBar('TEC', emp.technical, 10) +
+            this.skillBar('COM', emp.communication, 10) +
+            this.skillBar('REL', emp.reliability, 10) +
+          '</div>' +
+          '<div class="project-meta">$' + emp.salary + '/wk &mdash; Loyalty: <span class="' + loyaltyColor + '">' + Math.round(emp.loyalty) + '</span> &mdash; ' + emp.daysEmployed + 'd</div>' +
+        '</div>' +
+      '</div>';
+
+    // Detail view (expanded)
+    var detailHtml =
+      '<div class="person-detail hidden">' +
+        perkText + flawText + assignInfo +
+        this.renderWorkHistory(emp) +
+        '<div class="project-actions"></div>' +
+      '</div>';
+
+    card.innerHTML = summaryHtml + detailHtml;
+
+    // Toggle expand on click
+    card.onclick = function(e) {
+      if (e.target.tagName === 'BUTTON') return;
+      var detail = card.querySelector('.person-detail');
+      detail.classList.toggle('hidden');
+    };
+
+    // Add avatar
+    setTimeout(function() {
+      var slot = card.querySelector('.person-avatar-slot');
+      if (slot && typeof AvatarGen !== 'undefined') {
+        var canvas = AvatarGen.generate(emp, 3);
+        slot.appendChild(canvas);
+      }
+    }, 0);
 
     var actionsDiv = card.querySelector('.project-actions');
     var btnFire = document.createElement('button');
     btnFire.className = 'btn btn-danger btn-small';
     btnFire.textContent = 'FIRE';
-    btnFire.onclick = (function(id) { return function() { actionFire(id); UI.renderAll(); }; })(emp.id);
+    btnFire.onclick = function(e) {
+      e.stopPropagation();
+      actionFire(emp.id);
+      UI.renderAll();
+    };
     actionsDiv.appendChild(btnFire);
 
     return card;
@@ -372,22 +492,30 @@ var UI = {
 
   createCandidateCard: function(c) {
     var card = document.createElement('div');
-    card.className = 'project-card';
+    card.className = 'project-card person-card';
+    card.style.cursor = 'pointer';
 
+    var daysWaiting = G.day - (c.arrivedDay || G.day);
+
+    // Skills with fog of war
     var skillsHtml = '';
     if (c.skillsRevealed === 0) {
-      skillsHtml = '<div class="project-meta">Skills unknown — interview to reveal.</div>';
+      skillsHtml = '<div class="skill-bars">' +
+        this.skillBar('TEC', '?', 10) +
+        this.skillBar('COM', '?', 10) +
+        this.skillBar('REL', '?', 10) +
+      '</div>';
     } else if (c.skillsRevealed === 1) {
       skillsHtml = '<div class="skill-bars">' +
-        this.skillBar('TEC', c.technical, 5) +
-        this.skillBar('COM', '?', 5) +
-        this.skillBar('REL', '?', 5) +
+        this.skillBar('TEC', c.technical, 10) +
+        this.skillBar('COM', '?', 10) +
+        this.skillBar('REL', '?', 10) +
       '</div>';
     } else {
       skillsHtml = '<div class="skill-bars">' +
-        this.skillBar('TEC', c.technical, 5) +
-        this.skillBar('COM', c.communication, 5) +
-        this.skillBar('REL', c.reliability, 5) +
+        this.skillBar('TEC', c.technical, 10) +
+        this.skillBar('COM', c.communication, 10) +
+        this.skillBar('REL', c.reliability, 10) +
       '</div>';
     }
 
@@ -398,20 +526,49 @@ var UI = {
       perkHtml = '<div class="project-meta" style="color:var(--grey)">No special perks.</div>';
     }
 
-    // Market salary context
     var marketMod = getMarketSalaryModifier();
     var marketLabel = '';
-    if (marketMod > 1.15) marketLabel = ' (market rate: high)';
-    else if (marketMod < 0.9) marketLabel = ' (market rate: low)';
+    if (marketMod > 1.15) marketLabel = ' (market: high)';
+    else if (marketMod < 0.9) marketLabel = ' (market: low)';
 
-    card.innerHTML =
-      '<div class="project-card-header">' +
-        '<span class="project-name">' + escHtml(c.name) + '</span>' +
-        '<span class="candidate-role">' + escHtml(c.levelName + ' ' + c.role.name) + '</span>' +
-      '</div>' +
-      '<div class="project-meta">Asking: $' + c.salary + '/wk' + marketLabel + '</div>' +
-      skillsHtml + perkHtml +
-      '<div class="project-actions"></div>';
+    var waitLabel = daysWaiting > 0 ? ' <span style="color:var(--amber)">(waiting ' + daysWaiting + 'd)</span>' : '';
+
+    var summaryHtml =
+      '<div class="person-summary">' +
+        '<div class="person-avatar-slot" data-person-id="c' + c.id + '"></div>' +
+        '<div class="person-info">' +
+          '<div class="project-card-header">' +
+            '<span class="project-name">' + escHtml(c.name) + '</span>' +
+            '<span class="candidate-role">' + escHtml(c.levelName + ' ' + c.role.name) + '</span>' +
+          '</div>' +
+          '<div class="project-meta">Asking: $' + c.salary + '/wk' + marketLabel + waitLabel + '</div>' +
+          skillsHtml +
+        '</div>' +
+      '</div>';
+
+    var detailHtml =
+      '<div class="person-detail hidden">' +
+        perkHtml +
+        this.renderWorkHistory(c) +
+        '<div class="project-actions"></div>' +
+      '</div>';
+
+    card.innerHTML = summaryHtml + detailHtml;
+
+    card.onclick = function(e) {
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+      var detail = card.querySelector('.person-detail');
+      detail.classList.toggle('hidden');
+    };
+
+    // Add avatar
+    setTimeout(function() {
+      var slot = card.querySelector('.person-avatar-slot');
+      if (slot && typeof AvatarGen !== 'undefined') {
+        var canvas = AvatarGen.generate(c, 3);
+        slot.appendChild(canvas);
+      }
+    }, 0);
 
     var actionsDiv = card.querySelector('.project-actions');
 
@@ -420,7 +577,7 @@ var UI = {
       btnInt.className = 'btn btn-secondary btn-small';
       btnInt.textContent = c.skillsRevealed === 0 ? 'INTERVIEW (' + AP_COSTS.interview + ' AP)' : 'DEEP INTERVIEW (' + AP_COSTS.interview + ' AP)';
       btnInt.disabled = !canAct(AP_COSTS.interview);
-      btnInt.onclick = (function(id) { return function() { actionInterview(id); }; })(c.id);
+      btnInt.onclick = function(e) { e.stopPropagation(); actionInterview(c.id); };
       actionsDiv.appendChild(btnInt);
     }
 
@@ -428,15 +585,31 @@ var UI = {
     btnHire.className = 'btn btn-primary btn-small';
     btnHire.textContent = 'NEGOTIATE & HIRE (' + AP_COSTS.hire + ' AP)';
     btnHire.disabled = !canAct(AP_COSTS.hire);
-    btnHire.onclick = (function(id) { return function() { actionHire(id); }; })(c.id);
+    btnHire.onclick = function(e) { e.stopPropagation(); actionHire(c.id); };
     actionsDiv.appendChild(btnHire);
 
     return card;
   },
 
+  renderWorkHistory: function(person) {
+    if (!person.workHistory || person.workHistory.length === 0) {
+      return '<div class="work-history"><span class="comp-label">Work History:</span> <span style="color:var(--grey)">No prior experience</span></div>';
+    }
+    var html = '<div class="work-history"><span class="comp-label">Work History:</span>';
+    for (var i = 0; i < person.workHistory.length; i++) {
+      var wh = person.workHistory[i];
+      html += '<div class="work-history-item">' + escHtml(wh.company) + ' (' + wh.years + 'yr)</div>';
+    }
+    html += '</div>';
+    return html;
+  },
+
   skillBar: function(label, value, max) {
+    max = max || 10;
     if (value === '?') {
-      return '<div class="skill-row"><span class="skill-label">' + label + '</span><span class="skill-dots">?????</span></div>';
+      var fog = '';
+      for (var k = 0; k < max; k++) fog += '?';
+      return '<div class="skill-row"><span class="skill-label">' + label + '</span><span class="skill-dots skill-fog">' + fog + '</span></div>';
     }
     var filled = '';
     for (var i = 0; i < max; i++) {
@@ -461,10 +634,8 @@ var UI = {
     var total = shares.total;
     chartEl.innerHTML = '';
 
-    // Player bar
     chartEl.appendChild(this.createMarketBar('You', shares.player, total, 'var(--green)', ''));
 
-    // Competitor bars
     var alive = G.competitors.filter(function(c) { return c.alive; });
     alive.sort(function(a, b) { return b.share - a.share; });
 
@@ -480,7 +651,6 @@ var UI = {
       chartEl.appendChild(this.createMarketBar(c.name, c.share, total, barColors[c.style] || 'var(--grey-light)', c.focus));
     }
 
-    // Competitor details section
     if (compDetailsEl) {
       compDetailsEl.innerHTML = '';
       for (var d = 0; d < alive.length; d++) {
@@ -488,7 +658,6 @@ var UI = {
       }
     }
 
-    // Acquirable startups
     if (acqEl) {
       var acquirable = getAcquirableStartups();
       if (acquirable.length === 0) {
@@ -501,7 +670,6 @@ var UI = {
       }
     }
 
-    // Market news
     if (newsEl) {
       if (G.marketEvents.length === 0) {
         newsEl.innerHTML = '<div class="empty-state">No market news yet.</div>';
@@ -542,34 +710,29 @@ var UI = {
     var styleLabel = { megacorp: 'MEGACORP', vc_funded: 'VC-FUNDED', budget: 'BUDGET', niche: 'NICHE' };
     var styleClass = { megacorp: 'text-red', vc_funded: 'text-amber', budget: 'text-cyan', niche: 'text-green' };
 
-    var perksHtml = '';
-    if (comp.acqPerks && comp.acqPerks.length > 0) {
-      perksHtml = '<div class="comp-acq-info"><span class="comp-label">Acquisition perks:</span>';
-      for (var i = 0; i < comp.acqPerks.length; i++) {
-        perksHtml += '<div class="comp-perk-item">+ ' + escHtml(comp.acqPerks[i]) + '</div>';
-      }
-      perksHtml += '</div>';
-    }
-    var risksHtml = '';
-    if (comp.acqRisks && comp.acqRisks.length > 0) {
-      risksHtml = '<div class="comp-acq-info"><span class="comp-label">Acquisition risks:</span>';
-      for (var j = 0; j < comp.acqRisks.length; j++) {
-        risksHtml += '<div class="comp-risk-item">- ' + escHtml(comp.acqRisks[j]) + '</div>';
-      }
-      risksHtml += '</div>';
-    }
-
-    // Scout/Poach section
+    // Scout/Poach section with progressive reveal
     var scoutHtml = '';
     if (comp.scouted && comp.scoutedTeam && comp.scoutedTeam.length > 0) {
       scoutHtml = '<div class="comp-team-list"><span class="comp-label">Known team members:</span>';
       for (var k = 0; k < comp.scoutedTeam.length; k++) {
         var t = comp.scoutedTeam[k];
-        scoutHtml += '<div class="comp-team-member">' +
-          escHtml(t.name) + ' — ' + escHtml(t.levelName + ' ' + t.role.name) +
-          ' (TEC:' + t.technical + ') $' + t.salary + '/wk' +
-          ' <button class="btn btn-small btn-secondary poach-btn" onclick="actionPoach(' + comp.id + ',' + t.id + ')">POACH (' + AP_COSTS.poach + ' AP)</button>' +
-          '</div>';
+        var memberInfo = escHtml(t.name) + ' \u2014 ' + escHtml(t.levelName + ' ' + t.role.name);
+
+        // Progressive reveal based on scout level
+        if ((comp.scoutLevel || 1) >= 2) {
+          memberInfo += ' (TEC:' + t.technical + ') $' + t.salary + '/wk';
+        }
+        if ((comp.scoutLevel || 1) >= 3) {
+          var willingness = t.willingToLeave ? '<span class="text-green">Open to offers</span>' : '<span class="text-red">Not interested</span>';
+          memberInfo += ' \u2014 ' + willingness;
+        }
+
+        var poachBtn = '';
+        if (t.willingToLeave !== false || (comp.scoutLevel || 1) < 3) {
+          poachBtn = ' <button class="btn btn-small btn-secondary poach-btn" onclick="event.stopPropagation();actionPoach(' + comp.id + ',' + t.id + ')">POACH (' + AP_COSTS.poach + ' AP)</button>';
+        }
+
+        scoutHtml += '<div class="comp-team-member">' + memberInfo + poachBtn + '</div>';
       }
       scoutHtml += '</div>';
     }
@@ -581,16 +744,18 @@ var UI = {
       '</div>' +
       '<div class="project-meta">' + escHtml(comp.desc) + '</div>' +
       '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Share: ' + Math.round(comp.share) + '</div>' +
-      perksHtml + risksHtml + scoutHtml +
+      scoutHtml +
       '<div class="project-actions"></div>';
 
     var actionsDiv = card.querySelector('.project-actions');
 
-    // Scout button
-    if (!comp.scouted) {
+    // Scout button (multi-level)
+    var scoutLevel = comp.scoutLevel || 0;
+    if (scoutLevel < 3) {
+      var scoutLabel = scoutLevel === 0 ? 'SCOUT' : scoutLevel === 1 ? 'DEEP SCOUT' : 'INTEL SCAN';
       var btnScout = document.createElement('button');
       btnScout.className = 'btn btn-secondary btn-small';
-      btnScout.textContent = 'SCOUT (' + AP_COSTS.scout + ' AP)';
+      btnScout.textContent = scoutLabel + ' (' + AP_COSTS.scout + ' AP)';
       btnScout.disabled = !canAct(AP_COSTS.scout);
       btnScout.onclick = (function(id) { return function() { actionScout(id); }; })(comp.id);
       actionsDiv.appendChild(btnScout);
@@ -627,7 +792,7 @@ var UI = {
         '<span class="project-payout">$' + cost.toLocaleString() + '</span>' +
       '</div>' +
       '<div class="project-meta">' + escHtml(comp.desc) + '</div>' +
-      '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Market share: ' + Math.round(comp.share) + '</div>' +
+      '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Share: ' + Math.round(comp.share) + '</div>' +
       perksHtml + risksHtml +
       '<div class="project-actions"></div>';
 
@@ -649,30 +814,33 @@ var UI = {
 
     for (var i = 0; i < FOOD_ITEMS.length; i++) {
       var item = FOOD_ITEMS[i];
+      var cost = getFoodCost(item);
       var btn = document.createElement('button');
       btn.className = 'action-btn';
-      btn.disabled = !canAct(AP_COSTS.order_food) || G.cash < item.cost;
+      btn.disabled = G.cash < cost;
       btn.innerHTML =
         '<div>' +
           '<span class="action-name">' + escHtml(item.name) + '</span>' +
           '<span class="action-desc">' + escHtml(item.desc) + '</span>' +
         '</div>' +
-        '<span class="action-cost">$' + item.cost + ' &middot; ' + AP_COSTS.order_food + ' AP</span>';
+        '<span class="action-cost">$' + cost + '</span>';
       btn.onclick = (function(id) {
         return function() { actionOrderFood(id); };
       })(item.id);
       foodEl.appendChild(btn);
     }
 
-    // Upgrades
+    // Upgrades (now cost AP and are pricier)
     var upgradesEl = document.getElementById('shop-upgrades');
     upgradesEl.innerHTML = '';
 
     var UPGRADES = [
-      { id: 'coffee_machine', name: 'Coffee Machine',   cost: 200,  desc: '+10 energy every morning', oneTime: true },
-      { id: 'standing_desk',  name: 'Standing Desk',    cost: 400,  desc: '+1 AP per day (5 total)',  oneTime: true },
-      { id: 'second_monitor', name: 'Second Monitor',   cost: 350,  desc: 'Founder work is 20% faster', oneTime: true },
-      { id: 'office_perks',   name: 'Office Perks',     cost: 600,  desc: '+15 loyalty for all staff', oneTime: true },
+      { id: 'coffee_machine', name: 'Coffee Machine',    cost: 500,  apCost: 1, desc: '+10 energy every morning', oneTime: true },
+      { id: 'standing_desk',  name: 'Standing Desk',     cost: 800,  apCost: 1, desc: '+1 AP per day',            oneTime: true },
+      { id: 'second_monitor', name: 'Second Monitor',    cost: 600,  apCost: 1, desc: 'Founder work 20% faster',  oneTime: true },
+      { id: 'office_perks',   name: 'Office Perks',      cost: 1200, apCost: 2, desc: '+15 loyalty for all staff', oneTime: true },
+      { id: 'ping_pong',      name: 'Ping Pong Table',   cost: 400,  apCost: 1, desc: '+5 energy recovery when sleeping', oneTime: true },
+      { id: 'premium_software', name: 'Premium Software', cost: 1000, apCost: 1, desc: '+5% project progress for all', oneTime: true },
     ];
 
     for (var j = 0; j < UPGRADES.length; j++) {
@@ -680,19 +848,20 @@ var UI = {
       var owned = G.upgrades.indexOf(u.id) !== -1;
       var btn2 = document.createElement('button');
       btn2.className = 'action-btn';
-      btn2.disabled = owned || G.cash < u.cost;
+      btn2.disabled = owned || G.cash < u.cost || !canAct(u.apCost);
       btn2.innerHTML =
         '<div>' +
           '<span class="action-name">' + escHtml(u.name) + (owned ? ' [OWNED]' : '') + '</span>' +
           '<span class="action-desc">' + escHtml(u.desc) + '</span>' +
         '</div>' +
-        '<span class="action-cost">$' + u.cost + '</span>';
+        '<span class="action-cost">$' + u.cost + ' &middot; ' + u.apCost + ' AP</span>';
 
       if (!owned) {
         btn2.onclick = (function(upgrade) {
           return function() {
-            if (G.cash < upgrade.cost) return;
+            if (G.cash < upgrade.cost || !canAct(upgrade.apCost)) return;
             G.cash -= upgrade.cost;
+            spendAP(upgrade.apCost);
             G.upgrades.push(upgrade.id);
             addLog('Purchased: ' + upgrade.name + '!', 'good');
             if (upgrade.id === 'office_perks') {
@@ -700,21 +869,55 @@ var UI = {
                 G.team[k].loyalty = Math.min(100, G.team[k].loyalty + 15);
               }
             }
-            UI.renderAll();
+            showActionConfirmation('Purchased ' + upgrade.name + '!', 'good', function() {
+              UI.renderAll();
+            });
           };
         })(u);
       }
       upgradesEl.appendChild(btn2);
     }
+
+    // Training section
+    var trainingEl = document.getElementById('shop-training');
+    if (trainingEl && G.player) {
+      trainingEl.innerHTML = '';
+      var skills = [
+        { key: 'technical', label: 'Technical', desc: 'Improve solo work speed' },
+        { key: 'communication', label: 'Communication', desc: 'Reduce negative team events' },
+        { key: 'reliability', label: 'Reliability', desc: 'Improve energy efficiency' },
+      ];
+      for (var s = 0; s < skills.length; s++) {
+        var sk = skills[s];
+        var currentLvl = G.player[sk.key];
+        var trainCost = getTrainingCost(currentLvl);
+        var maxed = currentLvl >= 10;
+        var btn3 = document.createElement('button');
+        btn3.className = 'action-btn';
+        btn3.disabled = maxed || G.cash < trainCost || !canAct(AP_COSTS.train_skill);
+        btn3.innerHTML =
+          '<div>' +
+            '<span class="action-name">Train ' + sk.label + (maxed ? ' [MAX]' : ' (' + currentLvl + '/10)') + '</span>' +
+            '<span class="action-desc">' + escHtml(sk.desc) + '</span>' +
+          '</div>' +
+          '<span class="action-cost">' + (maxed ? 'MAX' : '$' + trainCost + ' &middot; 1 AP') + '</span>';
+        if (!maxed) {
+          btn3.onclick = (function(key) {
+            return function() { actionTrainSkill(key); };
+          })(sk.key);
+        }
+        trainingEl.appendChild(btn3);
+      }
+    }
   },
 
-  // --- Time of Day Background ---
+  // --- Time of Day ---
   updateTimeOfDay: function() {
     var tod = getTimeOfDay();
     document.body.className = 'time-' + tod;
   },
 
-  // --- End Day Button ---
+  // --- Footer ---
   renderFooter: function() {
     var btn = document.getElementById('btn-end-day');
     if (G.pushedThroughTonight) {
@@ -733,11 +936,8 @@ var UI = {
 
     for (var i = 0; i < tabs.length; i++) {
       tabs[i].classList.remove('active');
-      if (tabs[i].getAttribute('data-tab') === tabName) {
-        tabs[i].classList.add('active');
-      }
+      if (tabs[i].getAttribute('data-tab') === tabName) tabs[i].classList.add('active');
     }
-
     for (var j = 0; j < contents.length; j++) {
       contents[j].classList.remove('active');
     }

@@ -1,5 +1,7 @@
 /* ============================================
    engine.js — Core Game Loop, Day/Night Cycle
+   Energy scales with active projects.
+   Deadline penalties. Player skills.
    ============================================ */
 
 function spendAP(amount) {
@@ -12,7 +14,6 @@ function spendAP(amount) {
 }
 
 function spendEnergy(amount) {
-  // Management overhead: +2 energy per team member for management actions
   var overhead = Math.floor(G.team.length * 0.5);
   G.energy = Math.max(0, G.energy - (amount + overhead));
 }
@@ -25,10 +26,21 @@ function getEnergyStatus() {
 }
 
 function checkExhaustedMistake() {
-  if (G.energy < 25 && Math.random() < 0.20) {
-    return true;
-  }
+  if (G.energy < 25 && Math.random() < 0.20) return true;
   return false;
+}
+
+// Calculate energy recovery for sleeping based on active projects
+function getSleepEnergyRecovery() {
+  var base = 100;
+  var projectPenalty = G.activeProjects.length * 8;
+  return Math.max(40, base - projectPenalty);
+}
+
+function getPushEnergyRecovery() {
+  var base = 40;
+  var projectPenalty = G.activeProjects.length * 5;
+  return Math.max(15, base - projectPenalty);
 }
 
 // --- Energy Exhaustion: Project Failures ---
@@ -62,6 +74,7 @@ function endDay(pushThrough) {
   advanceProjects();
   tickTeam();
   checkProjectDeliveries();
+  checkMissedDeadlines();
 
   if (G.competitors && G.competitors.length > 0) {
     tickMarket();
@@ -102,11 +115,11 @@ function startNewDay() {
     G.apCurrent = G.apMax;
   }
 
-  // Energy reset
+  // Energy reset — scales with active projects
   if (G.pushedLastNight) {
-    G.energy = 40;
+    G.energy = getPushEnergyRecovery();
   } else {
-    G.energy = 100;
+    G.energy = getSleepEnergyRecovery();
   }
 
   // Coffee machine bonus
@@ -114,8 +127,13 @@ function startNewDay() {
     G.energy = Math.min(G.energyMax, G.energy + 10);
   }
 
+  // Ping pong table bonus
+  if (G.upgrades.indexOf('ping_pong') !== -1) {
+    G.energy = Math.min(G.energyMax, G.energy + 5);
+  }
+
   // Weekend rest bonus
-  if (G.dayOfWeek >= 5) { // SAT or SUN
+  if (G.dayOfWeek >= 5) {
     G.energy = Math.min(G.energyMax, G.energy + 10);
   }
 
@@ -130,14 +148,14 @@ function startNewDay() {
     G.pipeline.push(generateProject());
   }
 
-  // Hustler perk from team: extra lead per week
+  // Hustler perk
   var hustlerInTeam = G.team.some(function(e) { return e.perk && e.perk.id === 'hustler'; });
   if (hustlerInTeam && G.dayOfWeek === 0 && G.pipeline.length < 5) {
     G.pipeline.push(generateProject());
     addLog('Your hustler brought in an extra lead.', 'good');
   }
 
-  // Networker perk: passive rep every 14 days
+  // Networker perk
   for (var i = 0; i < G.team.length; i++) {
     var emp = G.team[i];
     if (emp.perk && emp.perk.id === 'networker' && emp.daysEmployed % 14 === 0 && emp.daysEmployed > 0) {
@@ -149,15 +167,15 @@ function startNewDay() {
   // Age pipeline leads
   agePipelineLeads();
 
+  // Age candidates (withdrawal after 3-5 days)
+  ageCandidates();
+
   // Generate candidates if job was posted
   if (G.jobPosted) {
     G.jobPosted = false;
     generateCandidatesForPosting();
     addLog('Candidates have applied for your job posting!', 'info');
   }
-
-  // Coffee machine passive effect: +3 energy per action during the day
-  // (tracked separately via upgrade check in spendEnergy)
 
   // Add morning log
   var dayName = DAYS_OF_WEEK[G.dayOfWeek];
@@ -176,14 +194,10 @@ function startNewDay() {
 
 function getBaseAPMax() {
   var base = 4;
-  if (G.upgrades.indexOf('standing_desk') !== -1) {
-    base += 1;
-  }
-  // Operations team bonus: +1 AP for every 2 ops team members (max +2)
+  if (G.upgrades.indexOf('standing_desk') !== -1) base += 1;
   var opsCount = getOpsTeamCount();
   var opsBonus = Math.min(2, Math.floor(opsCount / 2));
   base += opsBonus;
-
   return base;
 }
 
@@ -212,7 +226,7 @@ function checkPayroll() {
   var amount = getPayrollAmount();
   if (amount <= 0) return;
 
-  G.nextPayrollDay = G.day + 7; // Weekly payroll
+  G.nextPayrollDay = G.day + 7;
 
   if (G.cash >= amount) {
     G.cash -= amount;
@@ -222,7 +236,7 @@ function checkPayroll() {
     var shortfall = amount - G.cash;
     G.cash = 0;
     G.debt += shortfall;
-    addLog('Couldn\'t cover payroll! $' + shortfall + ' added to debt. Team morale tanked.', 'bad');
+    addLog('Couldn\'t cover payroll! $' + shortfall + ' added to debt.', 'bad');
     G.overnightEvents.push('MISSED PAYROLL! Team morale is plummeting.');
 
     for (var i = 0; i < G.team.length; i++) {
@@ -271,7 +285,7 @@ function showDayTransition(callback) {
   }, 2000);
 }
 
-// --- Night Push ---
+// --- Night Push with Energy Preview ---
 
 function showNightPushPrompt() {
   var modal = document.getElementById('event-modal');
@@ -279,14 +293,20 @@ function showNightPushPrompt() {
   var desc = document.getElementById('event-modal-desc');
   var choices = document.getElementById('event-modal-choices');
 
+  var sleepEnergy = getSleepEnergyRecovery();
+  var pushEnergy = getPushEnergyRecovery();
+
   title.textContent = 'END OF DAY';
-  desc.textContent = 'It\'s getting late. You can sleep and start fresh tomorrow, or push through the night for 1 bonus action — but you\'ll feel it tomorrow.';
+  desc.innerHTML = 'It\'s getting late. You can sleep and start fresh tomorrow, or push through for 1 bonus action.' +
+    '<br><br><span style="color:var(--cyan)">Sleep: Energy restores to ' + sleepEnergy + '</span>' +
+    '<br><span style="color:var(--amber)">Push through: Energy drops to ' + Math.max(0, G.energy - 20) + ' now, starts at ' + pushEnergy + ' tomorrow (AP -1)</span>' +
+    (G.activeProjects.length > 0 ? '<br><span style="color:var(--grey-light)">(' + G.activeProjects.length + ' active project(s) affecting rest quality)</span>' : '');
 
   choices.innerHTML = '';
 
   var btnSleep = document.createElement('button');
   btnSleep.className = 'btn btn-primary btn-small';
-  btnSleep.textContent = 'SLEEP & REST';
+  btnSleep.textContent = 'SLEEP & REST (Energy \u2192 ' + sleepEnergy + ')';
   btnSleep.onclick = function() {
     modal.style.display = 'none';
     endDay(false);

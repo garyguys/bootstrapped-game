@@ -1,5 +1,5 @@
 /* ============================================
-   BOOTSTRAPPED v2.1 — Terminal Hacker Aesthetic
+   BOOTSTRAPPED v3.0 — Terminal Hacker Aesthetic
    ============================================ */
 
 :root {
@@ -148,6 +148,132 @@ body {
 }
 
 /* ============================================
+   Character Creation Screen
+   ============================================ */
+#screen-create {
+  background: var(--bg-night);
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2rem;
+}
+
+.create-container {
+  z-index: 1;
+  max-width: 400px;
+  width: 100%;
+}
+
+.create-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 6vw, 2.5rem);
+  font-weight: 900;
+  color: var(--green);
+  text-shadow: 0 0 10px var(--green-glow);
+  letter-spacing: 0.15em;
+  margin-bottom: 0.25rem;
+}
+
+.create-subtitle {
+  font-family: var(--font-body);
+  color: var(--green-dim);
+  font-size: 0.85rem;
+  margin-bottom: 2rem;
+  letter-spacing: 0.05em;
+}
+
+.create-form {
+  text-align: left;
+}
+
+.create-field {
+  margin-bottom: 1rem;
+}
+
+.create-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--grey-light);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+
+.create-input {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  background: var(--grey-dark);
+  border: 1px solid var(--green-dark);
+  color: var(--green);
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+  min-height: var(--tap-min);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.create-input:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+}
+
+.create-input::placeholder {
+  color: var(--grey);
+}
+
+select.create-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2300cc33' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+select.create-input option {
+  background: var(--grey-dark);
+  color: var(--green);
+}
+
+.create-stats {
+  margin-top: 1.5rem;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  padding: 0.75rem;
+}
+
+.create-hint {
+  font-size: 0.7rem;
+  color: var(--grey-light);
+  margin-bottom: 0.5rem;
+}
+
+.create-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 0.75rem;
+}
+
+.create-stat-row:last-child {
+  border-bottom: none;
+}
+
+.create-stat-row span:first-child {
+  color: var(--cyan);
+  font-weight: bold;
+}
+
+.create-stat-row span:last-child {
+  color: var(--grey-light);
+  font-size: 0.65rem;
+}
+
+/* ============================================
    Buttons
    ============================================ */
 .btn {
@@ -243,6 +369,17 @@ body {
   font-family: var(--font-body);
   font-size: 0.85rem;
   color: var(--green-dim);
+}
+
+.header-company {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  color: var(--cyan-dim);
+  letter-spacing: 0.05em;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-cash {
@@ -598,6 +735,21 @@ body {
   margin: 0.3rem 0;
 }
 
+.project-team-assigned {
+  font-size: 0.65rem;
+  color: var(--cyan-dim);
+  margin-top: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(0, 229, 255, 0.05);
+  border-left: 2px solid var(--cyan-dim);
+}
+
+.project-deadline-warn {
+  font-size: 0.65rem;
+  color: var(--amber);
+  margin-top: 0.2rem;
+}
+
 .empty-state {
   font-size: 0.8rem;
   color: var(--grey);
@@ -755,6 +907,19 @@ body {
   gap: 0.5rem;
 }
 
+/* Event modal project progress */
+.event-project-progress {
+  margin: 0.5rem 0 1rem;
+  padding: 0.5rem;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 229, 255, 0.05);
+}
+
+.event-project-progress .project-name {
+  font-size: 0.75rem;
+  margin-bottom: 0.3rem;
+}
+
 /* ============================================
    Confirmation Modal (small popup)
    ============================================ */
@@ -878,6 +1043,52 @@ body {
   gap: 0.5rem;
 }
 
+/* Patience Bar */
+.patience-section {
+  margin: 0.75rem 0;
+}
+
+.patience-label {
+  font-size: 0.65rem;
+  color: var(--grey-light);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.patience-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--grey-dark);
+  border: 1px solid var(--panel-border);
+  border-radius: 2px;
+}
+
+.patience-bar-fill {
+  height: 100%;
+  border-radius: 1px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.patience-bar-fill.patience-high {
+  background: var(--green);
+}
+
+.patience-bar-fill.patience-mid {
+  background: var(--amber);
+}
+
+.patience-bar-fill.patience-low {
+  background: var(--red);
+  animation: pulse 1s infinite;
+}
+
+.patience-hint {
+  font-size: 0.6rem;
+  color: var(--grey);
+  margin-top: 0.2rem;
+}
+
 /* ============================================
    Overnight Events Panel
    ============================================ */
@@ -932,27 +1143,217 @@ body {
   justify-content: center;
 }
 
-/* ============================================
-   Background time-of-day theming
-   ============================================ */
-body.time-night     { --bg-current: var(--bg-night); }
-body.time-dawn      { --bg-current: var(--bg-dawn); }
-body.time-morning   { --bg-current: var(--bg-morning); }
-body.time-afternoon { --bg-current: var(--bg-afternoon); }
-body.time-dusk      { --bg-current: var(--bg-dusk); }
+/* Energy preview in night push */
+.energy-preview {
+  margin: 0.75rem 0;
+  padding: 0.5rem;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+}
 
-#screen-game {
-  background: var(--bg-current);
-  transition: background 1s ease;
+.energy-preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.2rem 0;
+  font-size: 0.75rem;
+}
+
+.energy-preview-row .preview-label {
+  color: var(--grey-light);
+}
+
+.energy-preview-row .preview-value {
+  color: var(--cyan);
+  font-weight: bold;
+}
+
+.energy-preview-row .preview-value.preview-good {
+  color: var(--green);
+}
+
+.energy-preview-row .preview-value.preview-warn {
+  color: var(--amber);
 }
 
 /* ============================================
-   Skill Bars (Team/Candidates)
+   Person Cards (Team & Candidates)
+   ============================================ */
+.person-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  margin-bottom: 0.5rem;
+  transition: border-color 0.15s ease;
+}
+
+.person-card-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  min-height: var(--tap-min);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.person-card-summary:active {
+  background: rgba(0, 255, 65, 0.03);
+}
+
+.person-avatar {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.person-avatar canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.person-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.person-name {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--green);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-role {
+  font-size: 0.7rem;
+  color: var(--cyan-dim);
+}
+
+.person-salary {
+  font-size: 0.65rem;
+  color: var(--amber-dim);
+}
+
+.person-expand-hint {
+  font-size: 0.6rem;
+  color: var(--grey);
+  flex-shrink: 0;
+}
+
+.person-card-detail {
+  display: none;
+  padding: 0 0.75rem 0.75rem;
+  border-top: 1px solid var(--panel-border);
+}
+
+.person-card.expanded .person-card-detail {
+  display: block;
+}
+
+.person-card.expanded {
+  border-color: var(--green-dark);
+}
+
+/* Person detail sections */
+.person-detail-section {
+  margin-top: 0.5rem;
+}
+
+.person-detail-label {
+  font-size: 0.6rem;
+  color: var(--grey-light);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.2rem;
+}
+
+.person-perk {
+  font-size: 0.7rem;
+  color: var(--green-dim);
+  background: rgba(0, 255, 65, 0.05);
+  border-left: 2px solid var(--green-dark);
+  padding: 0.2rem 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.person-flaw {
+  font-size: 0.7rem;
+  color: var(--red-dim);
+  background: rgba(255, 51, 51, 0.05);
+  border-left: 2px solid var(--red-dim);
+  padding: 0.2rem 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.person-assignment {
+  font-size: 0.7rem;
+  color: var(--cyan-dim);
+  margin-top: 0.3rem;
+}
+
+.person-loyalty {
+  font-size: 0.7rem;
+  margin-top: 0.2rem;
+}
+
+.person-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Work History */
+.work-history {
+  margin-top: 0.3rem;
+}
+
+.work-history-item {
+  font-size: 0.65rem;
+  color: var(--grey-light);
+  padding: 0.15rem 0;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--panel-border);
+}
+
+.work-history-item .wh-company {
+  color: var(--cyan-dim);
+}
+
+.work-history-item .wh-role {
+  color: var(--grey);
+}
+
+/* Fog of War (unknown skills) */
+.skill-fog {
+  font-size: 0.65rem;
+  color: var(--grey);
+  letter-spacing: 0.1em;
+  font-style: italic;
+}
+
+/* Candidate-specific */
+.candidate-timer {
+  font-size: 0.6rem;
+  color: var(--red-dim);
+  margin-top: 0.2rem;
+}
+
+/* ============================================
+   Skill Bars (Team/Candidates/Player)
    ============================================ */
 .skill-bars {
   display: flex;
   gap: 0.75rem;
   margin: 0.4rem 0;
+  flex-wrap: wrap;
 }
 
 .skill-row {
@@ -972,6 +1373,28 @@ body.time-dusk      { --bg-current: var(--bg-dusk); }
   font-size: 0.7rem;
   letter-spacing: 0.1em;
   color: var(--cyan);
+}
+
+.skill-bar-visual {
+  display: flex;
+  gap: 1px;
+}
+
+.skill-pip {
+  width: 6px;
+  height: 10px;
+  background: var(--grey-dark);
+  border: 1px solid var(--panel-border);
+}
+
+.skill-pip.filled {
+  background: var(--cyan);
+  border-color: var(--cyan-dim);
+}
+
+.skill-pip.filled.high {
+  background: var(--green);
+  border-color: var(--green-dim);
 }
 
 /* ============================================
@@ -1112,10 +1535,146 @@ body.time-dusk      { --bg-current: var(--bg-dusk); }
   gap: 0.3rem;
 }
 
+.comp-scout-level {
+  font-size: 0.6rem;
+  color: var(--grey);
+  margin-top: 0.3rem;
+}
+
 .poach-btn {
   font-size: 0.6rem !important;
   padding: 0.25rem 0.5rem !important;
   min-height: 28px !important;
+}
+
+/* ============================================
+   Shop — Training Section
+   ============================================ */
+.training-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.training-item {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  padding: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.training-info {
+  flex: 1;
+}
+
+.training-skill-name {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cyan);
+}
+
+.training-skill-level {
+  font-size: 0.7rem;
+  color: var(--grey-light);
+  margin-top: 0.1rem;
+}
+
+.training-cost {
+  font-size: 0.65rem;
+  color: var(--amber-dim);
+  margin-top: 0.1rem;
+}
+
+/* ============================================
+   Shop — Food Items
+   ============================================ */
+.food-item-buff {
+  font-size: 0.6rem;
+  color: var(--green-dim);
+  margin-top: 0.15rem;
+  font-style: italic;
+}
+
+/* ============================================
+   Assignment Modal
+   ============================================ */
+.assign-modal-content {
+  max-width: 380px;
+}
+
+.assign-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.assign-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  min-height: 40px;
+}
+
+.assign-item-info {
+  flex: 1;
+}
+
+.assign-item-name {
+  font-size: 0.8rem;
+  color: var(--green);
+}
+
+.assign-item-role {
+  font-size: 0.65rem;
+  color: var(--cyan-dim);
+}
+
+.assign-item-skill {
+  font-size: 0.65rem;
+  color: var(--grey-light);
+}
+
+.assign-current {
+  font-size: 0.6rem;
+  color: var(--amber-dim);
+}
+
+/* ============================================
+   Background time-of-day theming
+   ============================================ */
+body.time-night     { --bg-current: var(--bg-night); }
+body.time-dawn      { --bg-current: var(--bg-dawn); }
+body.time-morning   { --bg-current: var(--bg-morning); }
+body.time-afternoon { --bg-current: var(--bg-afternoon); }
+body.time-dusk      { --bg-current: var(--bg-dusk); }
+
+#screen-game {
+  background: var(--bg-current);
+  transition: background 1s ease;
+}
+
+/* ============================================
+   Active Perks / Buffs
+   ============================================ */
+.active-buff {
+  display: inline-block;
+  font-size: 0.6rem;
+  color: var(--green-dim);
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid var(--green-dark);
+  padding: 0.15rem 0.4rem;
+  margin: 0.1rem;
+  border-radius: 2px;
 }
 
 /* ============================================
@@ -1143,5 +1702,9 @@ body.time-dusk      { --bg-current: var(--bg-dusk); }
 
   .btn-end-day {
     max-width: 500px;
+  }
+
+  #screen-create .create-container {
+    max-width: 420px;
   }
 }
