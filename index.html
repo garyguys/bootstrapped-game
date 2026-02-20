@@ -20,7 +20,7 @@
         <button id="btn-new-game" class="btn btn-primary">NEW GAME</button>
         <button id="btn-continue" class="btn btn-secondary" style="display:none;">CONTINUE</button>
       </div>
-      <p class="title-version">v2.0</p>
+      <p class="title-version">v2.1</p>
     </div>
     <div class="scanline-overlay"></div>
   </div>
@@ -88,6 +88,14 @@
               <span class="status-label">Team</span>
               <span id="status-team" class="status-value">0</span>
             </div>
+            <div class="status-item">
+              <span class="status-label">Energy</span>
+              <span id="status-energy" class="status-value">Fresh</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Ops Bonus</span>
+              <span id="status-ops-bonus" class="status-value" style="font-size:0.65rem;">Hire PM/Sales/Marketing for +AP</span>
+            </div>
           </div>
           <div class="status-item" style="margin-top:0.5rem;">
             <span class="status-label">Active Perks</span>
@@ -141,8 +149,13 @@
           <div id="market-chart"></div>
         </div>
         <div class="dashboard-section">
+          <h2 class="section-title">COMPANIES</h2>
+          <p class="section-hint">Scout competitors to view their teams and poach talent</p>
+          <div id="competitor-details"></div>
+        </div>
+        <div class="dashboard-section">
           <h2 class="section-title">ACQUIRE STARTUPS</h2>
-          <p class="section-hint">Buy smaller competitors to gain market share and expertise</p>
+          <p class="section-hint">Buy smaller competitors — starting at $50k for niche startups</p>
           <div id="market-acquisitions"></div>
         </div>
         <div class="dashboard-section">
@@ -185,6 +198,46 @@
         <h3 id="event-modal-title"></h3>
         <p id="event-modal-desc"></p>
         <div id="event-modal-choices"></div>
+      </div>
+    </div>
+
+    <!-- CONFIRMATION MODAL (small popup for action feedback) -->
+    <div id="confirmation-modal" class="modal confirmation-overlay" style="display:none;">
+      <div class="confirmation-content">
+        <span id="confirmation-icon" class="confirmation-icon">+</span>
+        <span id="confirmation-text" class="confirmation-text"></span>
+        <button id="confirmation-ok" class="btn btn-small btn-secondary confirmation-btn">OK</button>
+      </div>
+    </div>
+
+    <!-- NEGOTIATION MODAL -->
+    <div id="negotiation-modal" class="modal" style="display:none;">
+      <div class="modal-content negotiation-content">
+        <h3>SALARY NEGOTIATION</h3>
+        <div class="negotiation-info">
+          <div class="negotiation-row">
+            <span class="negotiation-label">Candidate:</span>
+            <span id="negotiation-name" class="negotiation-value"></span>
+          </div>
+          <div class="negotiation-row">
+            <span class="negotiation-label">Role:</span>
+            <span id="negotiation-role" class="negotiation-value"></span>
+          </div>
+          <div class="negotiation-row">
+            <span class="negotiation-label">Asking:</span>
+            <span id="negotiation-asking" class="negotiation-value text-amber"></span>
+          </div>
+        </div>
+        <div class="negotiation-offer-section">
+          <label class="negotiation-label" for="negotiation-offer">Your offer ($/wk):</label>
+          <input type="number" id="negotiation-offer" class="negotiation-input" min="0" step="25">
+        </div>
+        <div id="negotiation-result" class="negotiation-result"></div>
+        <div class="negotiation-buttons">
+          <button id="negotiation-submit" class="btn btn-small btn-secondary">COUNTER-OFFER</button>
+          <button id="negotiation-accept" class="btn btn-small btn-primary">ACCEPT ASKING PRICE</button>
+          <button id="negotiation-close" class="btn btn-small btn-danger">CANCEL</button>
+        </div>
       </div>
     </div>
 

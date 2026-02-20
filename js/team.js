@@ -11,6 +11,9 @@ var ROLES = [
   { id: 'pm',         name: 'PM',         icon: '@' },
 ];
 
+// Operations roles that grant bonus AP
+var OPS_ROLES = ['pm', 'sales', 'marketer'];
+
 var CANDIDATE_FIRST_NAMES = [
   'Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Quinn', 'Avery',
   'Sam', 'Charlie', 'Dakota', 'Harper', 'Kai', 'Reese', 'Finley', 'Rowan',
@@ -24,7 +27,7 @@ var CANDIDATE_LAST_NAMES = [
   'Rivera', 'Volkov', 'Dubois', 'Ibrahim', 'Larsson', 'Torres', 'Yamamoto', 'Shah',
 ];
 
-// Perks candidates might have — roguelike flavor
+// Perks candidates might have
 var CANDIDATE_PERKS = [
   { id: 'night_owl',      name: 'Night Owl',      desc: 'Works overtime: +5% daily project progress', effect: 'bonus_progress', value: 5 },
   { id: 'mentor',         name: 'Mentor',          desc: 'Boosts nearby team skills by +1 over time', effect: 'team_boost', value: 1 },
@@ -40,7 +43,7 @@ var CANDIDATE_PERKS = [
   { id: 'quick_learner',  name: 'Quick Learner',   desc: 'All skills improve by +1 after 7 days', effect: 'growth', value: 1 },
 ];
 
-// Flaws that make bad hires risky — roguelike downside
+// Flaws
 var CANDIDATE_FLAWS = [
   { id: 'flaky',          name: 'Flaky',           desc: '25% chance of no-show each day', effect: 'unreliable', value: 0.25 },
   { id: 'prima_donna',    name: 'Prima Donna',     desc: 'Quits if not on the biggest project', effect: 'demanding', value: 0 },
@@ -51,6 +54,33 @@ var CANDIDATE_FLAWS = [
 ];
 
 var _nextCandidateId = 1;
+
+// Get market salary modifier based on competitor ecosystem
+function getMarketSalaryModifier() {
+  if (!G.competitors || G.competitors.length === 0) return 1.0;
+
+  var aliveComps = G.competitors.filter(function(c) { return c.alive; });
+  if (aliveComps.length === 0) return 1.0;
+
+  var modifier = 1.0;
+  for (var i = 0; i < aliveComps.length; i++) {
+    var c = aliveComps[i];
+    if (c.style === 'megacorp') {
+      modifier += 0.08; // Megacorps drive salaries up
+    } else if (c.style === 'vc_funded') {
+      if (c.share > 10) {
+        modifier += 0.06; // Well-funded startups pay high
+      } else {
+        modifier += 0.03; // Smaller funded startups, moderate
+      }
+    } else if (c.style === 'budget') {
+      modifier -= 0.02; // Budget shops push salaries down slightly
+    }
+    // Niche startups: neutral
+  }
+
+  return Math.max(0.8, Math.min(1.5, modifier));
+}
 
 function generateCandidate() {
   var role = randomChoice(ROLES);
@@ -73,10 +103,14 @@ function generateCandidate() {
     reliability = Math.min(5, reliability + 1);
   }
 
-  // Salary based on level
-  var salaryBase = [400, 800, 1400];
-  var salary = salaryBase[level - 1] + randomInt(-100, 200);
-  salary = Math.round(salary / 50) * 50; // round to 50
+  // Base weekly salary (halved from biweekly for weekly payroll)
+  var salaryBase = [200, 400, 700];
+  var salary = salaryBase[level - 1] + randomInt(-50, 100);
+  salary = Math.round(salary / 25) * 25; // round to 25
+
+  // Apply market salary modifier
+  var marketMod = getMarketSalaryModifier();
+  salary = Math.round(salary * marketMod / 25) * 25;
 
   // Perk (60% chance) and flaw (30% chance, hidden until hired)
   var perk = null;
@@ -89,8 +123,10 @@ function generateCandidate() {
     flaw = randomChoice(CANDIDATE_FLAWS);
   }
 
-  // Interview reveals
-  var skillsRevealed = 0; // 0=none, 1=one skill, 2=all three + perk
+  // Ex-FAANG perk: top salary
+  if (perk && perk.id === 'ex_faang') {
+    salary = Math.round(salary * 1.4 / 25) * 25;
+  }
 
   return {
     id: _nextCandidateId++,
@@ -101,11 +137,12 @@ function generateCandidate() {
     technical: technical,
     communication: communication,
     reliability: reliability,
-    salary: salary, // biweekly
+    salary: salary, // weekly
+    askingSalary: salary, // original ask for negotiation
     perk: perk,
-    flaw: flaw,           // hidden until after hiring
+    flaw: flaw,
     flawRevealed: false,
-    skillsRevealed: skillsRevealed,
+    skillsRevealed: 0,
     loyalty: 70 + randomInt(-10, 10),
     daysEmployed: 0,
   };
@@ -141,6 +178,45 @@ function interviewCandidate(candidateId) {
   return true;
 }
 
+// Salary negotiation
+function negotiateSalary(candidateId, offeredSalary) {
+  var c = findCandidate(candidateId);
+  if (!c) return { accepted: false, message: 'Candidate not found.' };
+
+  var askingSalary = c.askingSalary;
+  var ratio = offeredSalary / askingSalary;
+
+  if (ratio >= 1.0) {
+    // Meeting or exceeding ask - always accepted
+    c.salary = offeredSalary;
+    var bonusLoyalty = Math.min(20, Math.round((ratio - 1.0) * 100));
+    c.loyalty = Math.min(100, c.loyalty + bonusLoyalty);
+    return { accepted: true, message: c.name + ' happily accepts $' + offeredSalary + '/wk!' };
+  } else if (ratio >= 0.85) {
+    // 85-99% of ask: decent chance of acceptance
+    var chance = 0.5 + (ratio - 0.85) * 3.3; // 50% at 85%, ~100% at 100%
+    if (Math.random() < chance) {
+      c.salary = offeredSalary;
+      return { accepted: true, message: c.name + ' agrees to $' + offeredSalary + '/wk after some thought.' };
+    } else {
+      return { accepted: false, message: c.name + ' declines your offer. They want at least $' + askingSalary + '/wk.' };
+    }
+  } else if (ratio >= 0.70) {
+    // 70-84%: low chance
+    var lowChance = (ratio - 0.70) * 3.5; // 0% at 70%, ~50% at 84%
+    if (Math.random() < lowChance) {
+      c.salary = offeredSalary;
+      c.loyalty = Math.max(30, c.loyalty - 10); // Slightly resentful
+      return { accepted: true, message: c.name + ' reluctantly accepts $' + offeredSalary + '/wk.' };
+    } else {
+      return { accepted: false, message: c.name + ' is insulted by the lowball. They wanted $' + askingSalary + '/wk.' };
+    }
+  } else {
+    // Below 70%: auto-reject
+    return { accepted: false, message: c.name + ' laughs at your offer. Not even close to their $' + askingSalary + '/wk ask.' };
+  }
+}
+
 function hireCandidate(candidateId) {
   var c = findCandidate(candidateId);
   if (!c) return false;
@@ -164,7 +240,7 @@ function hireCandidate(candidateId) {
     addLog('Uh oh... ' + c.name + ' turns out to be: ' + c.flaw.name + ' — ' + c.flaw.desc, 'bad');
   }
 
-  addLog('Hired ' + c.name + ' as ' + c.levelName + ' ' + c.role.name + '. Salary: $' + c.salary + '/2wk.', 'good');
+  addLog('Hired ' + c.name + ' as ' + c.levelName + ' ' + c.role.name + '. Salary: $' + c.salary + '/wk.', 'good');
   return true;
 }
 
@@ -199,7 +275,7 @@ function findEmployee(id) {
   return null;
 }
 
-// Team daily tick — called from advanceProjects
+// Team daily tick
 function tickTeam() {
   var quitters = [];
 
@@ -250,11 +326,15 @@ function tickTeam() {
 // Calculate team contribution to project progress per day
 function getTeamProjectBonus(project) {
   var bonus = 0;
+  var devCount = 0;
+
   for (var i = 0; i < G.team.length; i++) {
     var emp = G.team[i];
 
     // Only devs/designers/devops contribute to project progress
     if (emp.role.id !== 'developer' && emp.role.id !== 'designer' && emp.role.id !== 'devops') continue;
+
+    devCount++;
 
     // Flaky check
     if (emp.flaw && emp.flaw.id === 'flaky' && Math.random() < emp.flaw.value) continue;
@@ -285,10 +365,19 @@ function getTeamProjectBonus(project) {
 
     bonus += contrib;
   }
+
+  // Team synergy: more devs = slightly higher output per dev (collaboration bonus)
+  if (devCount >= 3) {
+    bonus *= 1.1; // 10% synergy bonus with 3+ devs
+  }
+  if (devCount >= 5) {
+    bonus *= 1.05; // Additional 5% with 5+ devs
+  }
+
   return bonus;
 }
 
-// Get total biweekly payroll
+// Get total weekly payroll
 function getPayrollAmount() {
   var total = 0;
   for (var i = 0; i < G.team.length; i++) {
@@ -303,4 +392,80 @@ function getPayrollAmount() {
     total += salary;
   }
   return Math.round(total);
+}
+
+// Count operations team members (for AP bonus)
+function getOpsTeamCount() {
+  var count = 0;
+  for (var i = 0; i < G.team.length; i++) {
+    if (OPS_ROLES.indexOf(G.team[i].role.id) !== -1) {
+      count++;
+    }
+  }
+  return count;
+}
+
+// Scout a competitor to see their team info
+function scoutCompetitor(competitorId) {
+  var comp = null;
+  for (var i = 0; i < G.competitors.length; i++) {
+    if (G.competitors[i].id === competitorId) { comp = G.competitors[i]; break; }
+  }
+  if (!comp || !comp.alive) return false;
+
+  // Generate scouted team data if not already scouted
+  if (!comp.scoutedTeam) {
+    comp.scoutedTeam = [];
+    var teamSize = Math.max(2, Math.floor(comp.share / 3));
+    for (var j = 0; j < teamSize; j++) {
+      comp.scoutedTeam.push(generateCandidate());
+    }
+    comp.scouted = true;
+  }
+
+  addLog('Scouted ' + comp.name + ' — found ' + comp.scoutedTeam.length + ' team members.', 'info');
+  return true;
+}
+
+// Attempt to poach a team member from a competitor
+function poachEmployee(competitorId, candidateId) {
+  var comp = null;
+  for (var i = 0; i < G.competitors.length; i++) {
+    if (G.competitors[i].id === competitorId) { comp = G.competitors[i]; break; }
+  }
+  if (!comp || !comp.alive || !comp.scoutedTeam) return { success: false, message: 'Invalid target.' };
+
+  var targetIdx = -1;
+  for (var j = 0; j < comp.scoutedTeam.length; j++) {
+    if (comp.scoutedTeam[j].id === candidateId) { targetIdx = j; break; }
+  }
+  if (targetIdx === -1) return { success: false, message: 'Target not found.' };
+
+  var target = comp.scoutedTeam[targetIdx];
+
+  // Success chance: higher rep = better chance. Megacorps harder to poach from.
+  var baseChance = 0.4;
+  if (comp.style === 'megacorp') baseChance = 0.15;
+  else if (comp.style === 'vc_funded') baseChance = 0.25;
+  else if (comp.style === 'budget') baseChance = 0.55;
+
+  // Rep advantage helps
+  var repBonus = Math.min(0.3, G.reputation * 0.002);
+  var finalChance = Math.min(0.85, baseChance + repBonus);
+
+  if (Math.random() < finalChance) {
+    // Success — add to candidates with boosted salary expectation
+    comp.scoutedTeam.splice(targetIdx, 1);
+    target.salary = Math.round(target.salary * 1.2 / 25) * 25; // They want a raise
+    target.askingSalary = target.salary;
+    target.skillsRevealed = 2; // Fully revealed since you scouted them
+    G.candidates.push(target);
+    addLog('Poached ' + target.name + ' from ' + comp.name + '! They want $' + target.salary + '/wk.', 'good');
+    return { success: true, message: 'Successfully poached ' + target.name + '!' };
+  } else {
+    // Failed — rep loss
+    G.reputation = Math.max(0, G.reputation - 2);
+    addLog('Failed to poach from ' + comp.name + '. Word got out. -2 rep.', 'bad');
+    return { success: false, message: 'Poaching attempt failed. -2 rep.' };
+  }
 }

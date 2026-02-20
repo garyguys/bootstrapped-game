@@ -69,6 +69,23 @@ var UI = {
       }
     }
 
+    // Energy status indicator
+    var energyStatusEl = document.getElementById('status-energy');
+    if (energyStatusEl) {
+      var status = getEnergyStatus();
+      var statusLabels = { fresh: 'Fresh', ok: 'OK', tired: 'Tired', exhausted: 'Exhausted' };
+      var statusColors = { fresh: 'text-green', ok: 'text-cyan', tired: 'text-amber', exhausted: 'text-red' };
+      energyStatusEl.textContent = statusLabels[status];
+      energyStatusEl.className = 'status-value ' + statusColors[status];
+    }
+
+    // Ops AP bonus indicator
+    var opsBonus = Math.min(2, Math.floor(getOpsTeamCount() / 2));
+    var opsEl = document.getElementById('status-ops-bonus');
+    if (opsEl) {
+      opsEl.textContent = opsBonus > 0 ? '+' + opsBonus + ' AP from ops team' : 'Hire PM/Sales/Marketing for +AP';
+    }
+
     // Actions
     var actionsContainer = document.getElementById('dashboard-actions');
     var actions = getDashboardActions();
@@ -97,13 +114,25 @@ var UI = {
     this.renderOvernightEvents();
   },
 
-  // --- Log ---
+  // --- Log with Day Separators ---
   renderLog: function() {
     var container = document.getElementById('log-entries');
     container.innerHTML = '';
-    var count = Math.min(G.log.length, 25);
+    var count = Math.min(G.log.length, 30);
+    var lastDay = -1;
+
     for (var i = 0; i < count; i++) {
       var entry = G.log[i];
+
+      // Day separator
+      if (entry.day !== lastDay) {
+        var separator = document.createElement('div');
+        separator.className = 'log-day-separator';
+        separator.textContent = '— Day ' + entry.day + ' —';
+        container.appendChild(separator);
+        lastDay = entry.day;
+      }
+
       var div = document.createElement('div');
       div.className = 'log-entry log-' + entry.type;
       div.innerHTML = '<span class="log-time">' + escHtml(entry.time) + '</span>' + escHtml(entry.text);
@@ -111,7 +140,7 @@ var UI = {
     }
   },
 
-  // --- Overnight Events ---
+  // --- Overnight Events with Day Stamp ---
   renderOvernightEvents: function() {
     var panel = document.getElementById('overnight-events');
     if (G.overnightEvents.length === 0) {
@@ -119,10 +148,11 @@ var UI = {
       return;
     }
     panel.style.display = 'block';
-    var html = '<h3>OVERNIGHT</h3>';
+    var html = '<h3>OVERNIGHT — Day ' + (G.day - 1) + ' to Day ' + G.day + '</h3>';
     for (var i = 0; i < G.overnightEvents.length; i++) {
       html += '<div class="event-item">' + escHtml(G.overnightEvents[i]) + '</div>';
     }
+    html += '<button class="btn btn-small btn-secondary overnight-dismiss" onclick="G.overnightEvents=[];UI.renderOvernightEvents();">DISMISS</button>';
     panel.innerHTML = html;
   },
 
@@ -178,6 +208,18 @@ var UI = {
     card.className = 'project-card';
     var complexLabel = project.complexity <= 1.5 ? 'Solo-able' : 'Needs team';
 
+    // Show requirements
+    var reqParts = [];
+    if (project.minTeam > 0) reqParts.push(project.minTeam + '+ team');
+    if (project.requiredRole) {
+      var roleName = project.requiredRole.charAt(0).toUpperCase() + project.requiredRole.slice(1);
+      reqParts.push('Needs ' + roleName);
+    }
+    var reqText = reqParts.length > 0 ? '<div class="project-requirements">' + reqParts.join(' | ') + '</div>' : '';
+
+    var check = canAcceptProject(project);
+    var canAcceptClass = check.ok ? '' : ' project-locked';
+
     card.innerHTML =
       '<div class="project-card-header">' +
         '<span class="project-name">' + escHtml(project.name) + '</span>' +
@@ -187,14 +229,16 @@ var UI = {
         escHtml(project.client) + ' &mdash; ' +
         project.daysToComplete + ' days &mdash; ' + complexLabel +
       '</div>' +
+      reqText +
       '<div class="project-expires">Expires in ' + project.expiresIn + ' day' + (project.expiresIn !== 1 ? 's' : '') + '</div>' +
+      (check.ok ? '' : '<div class="project-lock-reason">' + escHtml(check.reason) + '</div>') +
       '<div class="project-actions"></div>';
 
     var actionsDiv = card.querySelector('.project-actions');
     var btnAccept = document.createElement('button');
     btnAccept.className = 'btn btn-primary btn-small';
-    btnAccept.textContent = 'ACCEPT (1 AP)';
-    btnAccept.disabled = !canAct();
+    btnAccept.textContent = 'ACCEPT (' + AP_COSTS.accept_project + ' AP)';
+    btnAccept.disabled = !canAct(AP_COSTS.accept_project) || !check.ok;
     btnAccept.onclick = function() { actionAcceptProject(project.id); };
     actionsDiv.appendChild(btnAccept);
 
@@ -208,6 +252,13 @@ var UI = {
     var daysLeft = project.daysToComplete - project.daysActive;
     var overdueClass = daysLeft <= 0 ? ' text-red' : '';
 
+    // Show required role info
+    var reqInfo = '';
+    if (project.requiredRole) {
+      var roleName = project.requiredRole.charAt(0).toUpperCase() + project.requiredRole.slice(1);
+      reqInfo = '<div class="project-requirements">Spec: ' + roleName + '</div>';
+    }
+
     card.innerHTML =
       '<div class="project-card-header">' +
         '<span class="project-name">' + escHtml(project.name) + '</span>' +
@@ -215,6 +266,7 @@ var UI = {
       '</div>' +
       '<div class="project-meta">' + escHtml(project.client) +
         ' &mdash; <span class="' + overdueClass + '">Day ' + project.daysActive + '/' + project.daysToComplete + '</span></div>' +
+      reqInfo +
       '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + Math.round(project.progress) + '%"></div></div>' +
       '<div class="project-meta">' + Math.round(project.progress) + '% complete</div>' +
       '<div class="project-actions"></div>';
@@ -224,18 +276,17 @@ var UI = {
     if (canWork) {
       var btnWork = document.createElement('button');
       btnWork.className = 'btn btn-primary btn-small';
-      btnWork.textContent = 'WORK (1 AP)';
-      btnWork.disabled = !canAct();
+      btnWork.textContent = 'WORK (' + AP_COSTS.work_project + ' AP)';
+      btnWork.disabled = !canAct(AP_COSTS.work_project);
       btnWork.onclick = function() { actionWorkProject(project.id); };
       actionsDiv.appendChild(btnWork);
     }
 
-    // Client call for deadline extension (only if approaching/past deadline)
     if (daysLeft <= 2 && project.progress < 100) {
       var btnCall = document.createElement('button');
       btnCall.className = 'btn btn-secondary btn-small';
       btnCall.textContent = 'CALL (+2 DAYS)';
-      btnCall.disabled = !canAct();
+      btnCall.disabled = !canAct(AP_COSTS.client_call);
       btnCall.onclick = function() { actionClientCall(project.id); };
       actionsDiv.appendChild(btnCall);
     }
@@ -254,7 +305,7 @@ var UI = {
       if (G.team.length > 0) {
         var amount = getPayrollAmount();
         var daysUntil = G.nextPayrollDay - G.day;
-        payrollEl.innerHTML = '<span class="payroll-label">Next payroll:</span> $' + amount.toLocaleString() +
+        payrollEl.innerHTML = '<span class="payroll-label">Weekly payroll:</span> $' + amount.toLocaleString() +
           ' in ' + Math.max(0, daysUntil) + ' day(s)';
         payrollEl.style.display = 'block';
       } else {
@@ -305,7 +356,7 @@ var UI = {
         this.skillBar('COM', emp.communication, 5) +
         this.skillBar('REL', emp.reliability, 5) +
       '</div>' +
-      '<div class="project-meta">Salary: $' + emp.salary + '/2wk &mdash; Loyalty: <span class="' + loyaltyColor + '">' + emp.loyalty + '</span> &mdash; ' + emp.daysEmployed + ' days</div>' +
+      '<div class="project-meta">Salary: $' + emp.salary + '/wk &mdash; Loyalty: <span class="' + loyaltyColor + '">' + emp.loyalty + '</span> &mdash; ' + emp.daysEmployed + ' days</div>' +
       perkText + flawText +
       '<div class="project-actions"></div>';
 
@@ -347,12 +398,18 @@ var UI = {
       perkHtml = '<div class="project-meta" style="color:var(--grey)">No special perks.</div>';
     }
 
+    // Market salary context
+    var marketMod = getMarketSalaryModifier();
+    var marketLabel = '';
+    if (marketMod > 1.15) marketLabel = ' (market rate: high)';
+    else if (marketMod < 0.9) marketLabel = ' (market rate: low)';
+
     card.innerHTML =
       '<div class="project-card-header">' +
         '<span class="project-name">' + escHtml(c.name) + '</span>' +
         '<span class="candidate-role">' + escHtml(c.levelName + ' ' + c.role.name) + '</span>' +
       '</div>' +
-      '<div class="project-meta">Asking: $' + c.salary + '/2wk</div>' +
+      '<div class="project-meta">Asking: $' + c.salary + '/wk' + marketLabel + '</div>' +
       skillsHtml + perkHtml +
       '<div class="project-actions"></div>';
 
@@ -361,16 +418,16 @@ var UI = {
     if (c.skillsRevealed < 2) {
       var btnInt = document.createElement('button');
       btnInt.className = 'btn btn-secondary btn-small';
-      btnInt.textContent = c.skillsRevealed === 0 ? 'INTERVIEW (1 AP)' : 'DEEP INTERVIEW (1 AP)';
-      btnInt.disabled = !canAct();
+      btnInt.textContent = c.skillsRevealed === 0 ? 'INTERVIEW (' + AP_COSTS.interview + ' AP)' : 'DEEP INTERVIEW (' + AP_COSTS.interview + ' AP)';
+      btnInt.disabled = !canAct(AP_COSTS.interview);
       btnInt.onclick = (function(id) { return function() { actionInterview(id); }; })(c.id);
       actionsDiv.appendChild(btnInt);
     }
 
     var btnHire = document.createElement('button');
     btnHire.className = 'btn btn-primary btn-small';
-    btnHire.textContent = 'HIRE (1 AP)';
-    btnHire.disabled = !canAct();
+    btnHire.textContent = 'NEGOTIATE & HIRE (' + AP_COSTS.hire + ' AP)';
+    btnHire.disabled = !canAct(AP_COSTS.hire);
     btnHire.onclick = (function(id) { return function() { actionHire(id); }; })(c.id);
     actionsDiv.appendChild(btnHire);
 
@@ -393,6 +450,7 @@ var UI = {
     var chartEl = document.getElementById('market-chart');
     var newsEl = document.getElementById('market-news');
     var acqEl = document.getElementById('market-acquisitions');
+    var compDetailsEl = document.getElementById('competitor-details');
 
     if (!G.competitors || G.competitors.length === 0) {
       chartEl.innerHTML = '<div class="empty-state">Market data not yet available.</div>';
@@ -420,6 +478,14 @@ var UI = {
     for (var i = 0; i < alive.length; i++) {
       var c = alive[i];
       chartEl.appendChild(this.createMarketBar(c.name, c.share, total, barColors[c.style] || 'var(--grey-light)', c.focus));
+    }
+
+    // Competitor details section
+    if (compDetailsEl) {
+      compDetailsEl.innerHTML = '';
+      for (var d = 0; d < alive.length; d++) {
+        compDetailsEl.appendChild(this.createCompetitorDetailCard(alive[d]));
+      }
     }
 
     // Acquirable startups
@@ -469,24 +535,107 @@ var UI = {
     return div;
   },
 
+  createCompetitorDetailCard: function(comp) {
+    var card = document.createElement('div');
+    card.className = 'project-card competitor-detail';
+
+    var styleLabel = { megacorp: 'MEGACORP', vc_funded: 'VC-FUNDED', budget: 'BUDGET', niche: 'NICHE' };
+    var styleClass = { megacorp: 'text-red', vc_funded: 'text-amber', budget: 'text-cyan', niche: 'text-green' };
+
+    var perksHtml = '';
+    if (comp.acqPerks && comp.acqPerks.length > 0) {
+      perksHtml = '<div class="comp-acq-info"><span class="comp-label">Acquisition perks:</span>';
+      for (var i = 0; i < comp.acqPerks.length; i++) {
+        perksHtml += '<div class="comp-perk-item">+ ' + escHtml(comp.acqPerks[i]) + '</div>';
+      }
+      perksHtml += '</div>';
+    }
+    var risksHtml = '';
+    if (comp.acqRisks && comp.acqRisks.length > 0) {
+      risksHtml = '<div class="comp-acq-info"><span class="comp-label">Acquisition risks:</span>';
+      for (var j = 0; j < comp.acqRisks.length; j++) {
+        risksHtml += '<div class="comp-risk-item">- ' + escHtml(comp.acqRisks[j]) + '</div>';
+      }
+      risksHtml += '</div>';
+    }
+
+    // Scout/Poach section
+    var scoutHtml = '';
+    if (comp.scouted && comp.scoutedTeam && comp.scoutedTeam.length > 0) {
+      scoutHtml = '<div class="comp-team-list"><span class="comp-label">Known team members:</span>';
+      for (var k = 0; k < comp.scoutedTeam.length; k++) {
+        var t = comp.scoutedTeam[k];
+        scoutHtml += '<div class="comp-team-member">' +
+          escHtml(t.name) + ' — ' + escHtml(t.levelName + ' ' + t.role.name) +
+          ' (TEC:' + t.technical + ') $' + t.salary + '/wk' +
+          ' <button class="btn btn-small btn-secondary poach-btn" onclick="actionPoach(' + comp.id + ',' + t.id + ')">POACH (' + AP_COSTS.poach + ' AP)</button>' +
+          '</div>';
+      }
+      scoutHtml += '</div>';
+    }
+
+    card.innerHTML =
+      '<div class="project-card-header">' +
+        '<span class="project-name">' + escHtml(comp.name) + '</span>' +
+        '<span class="' + (styleClass[comp.style] || '') + '" style="font-size:0.65rem;">' + (styleLabel[comp.style] || comp.style) + '</span>' +
+      '</div>' +
+      '<div class="project-meta">' + escHtml(comp.desc) + '</div>' +
+      '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Share: ' + Math.round(comp.share) + '</div>' +
+      perksHtml + risksHtml + scoutHtml +
+      '<div class="project-actions"></div>';
+
+    var actionsDiv = card.querySelector('.project-actions');
+
+    // Scout button
+    if (!comp.scouted) {
+      var btnScout = document.createElement('button');
+      btnScout.className = 'btn btn-secondary btn-small';
+      btnScout.textContent = 'SCOUT (' + AP_COSTS.scout + ' AP)';
+      btnScout.disabled = !canAct(AP_COSTS.scout);
+      btnScout.onclick = (function(id) { return function() { actionScout(id); }; })(comp.id);
+      actionsDiv.appendChild(btnScout);
+    }
+
+    return card;
+  },
+
   createAcquisitionCard: function(comp) {
     var cost = getAcquisitionCost(comp);
     var card = document.createElement('div');
     card.className = 'project-card';
+
+    var perksHtml = '';
+    if (comp.acqPerks && comp.acqPerks.length > 0) {
+      perksHtml = '<div class="comp-acq-info">';
+      for (var i = 0; i < comp.acqPerks.length; i++) {
+        perksHtml += '<div class="comp-perk-item">+ ' + escHtml(comp.acqPerks[i]) + '</div>';
+      }
+      perksHtml += '</div>';
+    }
+    var risksHtml = '';
+    if (comp.acqRisks && comp.acqRisks.length > 0) {
+      risksHtml = '<div class="comp-acq-info">';
+      for (var j = 0; j < comp.acqRisks.length; j++) {
+        risksHtml += '<div class="comp-risk-item">- ' + escHtml(comp.acqRisks[j]) + '</div>';
+      }
+      risksHtml += '</div>';
+    }
+
     card.innerHTML =
       '<div class="project-card-header">' +
         '<span class="project-name">' + escHtml(comp.name) + '</span>' +
         '<span class="project-payout">$' + cost.toLocaleString() + '</span>' +
       '</div>' +
       '<div class="project-meta">' + escHtml(comp.desc) + '</div>' +
-      '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Market share: ' + comp.share + '</div>' +
+      '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Market share: ' + Math.round(comp.share) + '</div>' +
+      perksHtml + risksHtml +
       '<div class="project-actions"></div>';
 
     var actionsDiv = card.querySelector('.project-actions');
     var btnAcq = document.createElement('button');
     btnAcq.className = 'btn btn-primary btn-small';
-    btnAcq.textContent = 'ACQUIRE (1 AP, $' + cost.toLocaleString() + ')';
-    btnAcq.disabled = !canAct() || G.cash < cost;
+    btnAcq.textContent = 'ACQUIRE (' + AP_COSTS.acquire + ' AP, $' + cost.toLocaleString() + ')';
+    btnAcq.disabled = !canAct(AP_COSTS.acquire) || G.cash < cost;
     btnAcq.onclick = (function(id) { return function() { actionAcquire(id); }; })(comp.id);
     actionsDiv.appendChild(btnAcq);
 
@@ -502,13 +651,13 @@ var UI = {
       var item = FOOD_ITEMS[i];
       var btn = document.createElement('button');
       btn.className = 'action-btn';
-      btn.disabled = !canAct() || G.cash < item.cost;
+      btn.disabled = !canAct(AP_COSTS.order_food) || G.cash < item.cost;
       btn.innerHTML =
         '<div>' +
           '<span class="action-name">' + escHtml(item.name) + '</span>' +
           '<span class="action-desc">' + escHtml(item.desc) + '</span>' +
         '</div>' +
-        '<span class="action-cost">$' + item.cost + ' &middot; 1 AP</span>';
+        '<span class="action-cost">$' + item.cost + ' &middot; ' + AP_COSTS.order_food + ' AP</span>';
       btn.onclick = (function(id) {
         return function() { actionOrderFood(id); };
       })(item.id);
@@ -546,7 +695,6 @@ var UI = {
             G.cash -= upgrade.cost;
             G.upgrades.push(upgrade.id);
             addLog('Purchased: ' + upgrade.name + '!', 'good');
-            // Apply immediate effects
             if (upgrade.id === 'office_perks') {
               for (var k = 0; k < G.team.length; k++) {
                 G.team[k].loyalty = Math.min(100, G.team[k].loyalty + 15);

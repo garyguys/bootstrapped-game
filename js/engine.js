@@ -12,7 +12,9 @@ function spendAP(amount) {
 }
 
 function spendEnergy(amount) {
-  G.energy = Math.max(0, G.energy - amount);
+  // Management overhead: +2 energy per team member for management actions
+  var overhead = Math.floor(G.team.length * 0.5);
+  G.energy = Math.max(0, G.energy - (amount + overhead));
 }
 
 function getEnergyStatus() {
@@ -35,11 +37,9 @@ function checkEnergyProjectFailures() {
   if (G.energy > 0) return;
   if (G.activeProjects.length === 0) return;
 
-  // When energy hits 0, random projects lose progress or fail
   var failCount = Math.random() < 0.4 ? 2 : 1;
   failCount = Math.min(failCount, G.activeProjects.length);
 
-  // Shuffle and pick
   var shuffled = G.activeProjects.slice().sort(function() { return Math.random() - 0.5; });
 
   for (var i = 0; i < failCount; i++) {
@@ -48,9 +48,7 @@ function checkEnergyProjectFailures() {
     p.progress = Math.max(0, p.progress - loss);
     addLog('Exhaustion caused a disaster on ' + p.name + '! -' + loss + '% progress.', 'bad');
 
-    // If project was near deadline and got wiped, it might fail completely
     if (p.daysActive >= p.daysToComplete && p.progress < 30) {
-      // Project fails — client leaves
       G.activeProjects = G.activeProjects.filter(function(x) { return x.id !== p.id; });
       G.reputation = Math.max(0, G.reputation - p.repGain);
       addLog(p.client + ' cancelled the project due to repeated failures! -' + p.repGain + ' rep.', 'bad');
@@ -61,27 +59,16 @@ function checkEnergyProjectFailures() {
 // --- End Day / Sleep ---
 
 function endDay(pushThrough) {
-  // Advance active projects (team auto-work happens here)
   advanceProjects();
-
-  // Team daily tick
   tickTeam();
-
-  // Check for completed projects
   checkProjectDeliveries();
 
-  // Market tick
   if (G.competitors && G.competitors.length > 0) {
     tickMarket();
   }
 
-  // Tick perks (reduce durations)
   tickPerks();
-
-  // Overnight random events
   rollOvernightEvents();
-
-  // Payroll check
   checkPayroll();
 
   if (pushThrough) {
@@ -91,10 +78,8 @@ function endDay(pushThrough) {
     G.pushedLastNight = false;
   }
 
-  // Save before transition
   saveGame();
 
-  // Show transition, then start new day
   showDayTransition(function() {
     startNewDay();
   });
@@ -108,7 +93,7 @@ function startNewDay() {
   G.pushedThroughTonight = false;
   G.dayEventFired = false;
 
-  // AP reset
+  // AP reset (includes ops team bonus)
   if (G.pushedLastNight) {
     G.apMax = getBaseAPMax() - 1;
     G.apCurrent = G.apMax;
@@ -126,6 +111,11 @@ function startNewDay() {
 
   // Coffee machine bonus
   if (G.upgrades.indexOf('coffee_machine') !== -1) {
+    G.energy = Math.min(G.energyMax, G.energy + 10);
+  }
+
+  // Weekend rest bonus
+  if (G.dayOfWeek >= 5) { // SAT or SUN
     G.energy = Math.min(G.energyMax, G.energy + 10);
   }
 
@@ -166,6 +156,9 @@ function startNewDay() {
     addLog('Candidates have applied for your job posting!', 'info');
   }
 
+  // Coffee machine passive effect: +3 energy per action during the day
+  // (tracked separately via upgrade check in spendEnergy)
+
   // Add morning log
   var dayName = DAYS_OF_WEEK[G.dayOfWeek];
   addLog('Day ' + G.day + ' (' + dayName + ') — Good morning.', 'info');
@@ -177,10 +170,7 @@ function startNewDay() {
   // Check stage progression
   checkStageProgression();
 
-  // Save new day
   saveGame();
-
-  // Update UI
   UI.renderAll();
 }
 
@@ -189,6 +179,11 @@ function getBaseAPMax() {
   if (G.upgrades.indexOf('standing_desk') !== -1) {
     base += 1;
   }
+  // Operations team bonus: +1 AP for every 2 ops team members (max +2)
+  var opsCount = getOpsTeamCount();
+  var opsBonus = Math.min(2, Math.floor(opsCount / 2));
+  base += opsBonus;
+
   return base;
 }
 
@@ -204,7 +199,7 @@ function tickPerks() {
         addLog('Perk expired: ' + p.name, 'info');
       }
     } else {
-      remaining.push(p); // permanent perks
+      remaining.push(p);
     }
   }
   G.perks = remaining;
@@ -217,21 +212,19 @@ function checkPayroll() {
   var amount = getPayrollAmount();
   if (amount <= 0) return;
 
-  G.nextPayrollDay = G.day + 14;
+  G.nextPayrollDay = G.day + 7; // Weekly payroll
 
   if (G.cash >= amount) {
     G.cash -= amount;
     addLog('Payroll: -$' + amount.toLocaleString() + ' for ' + G.team.length + ' employee(s).', 'warn');
-    G.overnightEvents.push('Payroll processed: -$' + amount.toLocaleString());
+    G.overnightEvents.push('Weekly payroll processed: -$' + amount.toLocaleString());
   } else {
-    // Can't afford payroll
     var shortfall = amount - G.cash;
     G.cash = 0;
     G.debt += shortfall;
     addLog('Couldn\'t cover payroll! $' + shortfall + ' added to debt. Team morale tanked.', 'bad');
     G.overnightEvents.push('MISSED PAYROLL! Team morale is plummeting.');
 
-    // Massive loyalty hit
     for (var i = 0; i < G.team.length; i++) {
       G.team[i].loyalty = Math.max(0, G.team[i].loyalty - 30);
     }
