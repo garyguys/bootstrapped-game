@@ -1,0 +1,946 @@
+/* ============================================
+   BOOTSTRAPPED v2 — Terminal Hacker Aesthetic
+   ============================================ */
+
+:root {
+  /* Core palette */
+  --bg-night:     #080c08;
+  --bg-dawn:      #0a0e12;
+  --bg-morning:   #0a100a;
+  --bg-afternoon: #0c120a;
+  --bg-dusk:      #12100a;
+  --bg-current:   var(--bg-morning);
+
+  --green:        #00ff41;
+  --green-dim:    #00cc33;
+  --green-dark:   #006b1d;
+  --green-glow:   #00ff4180;
+  --amber:        #ffaa00;
+  --amber-dim:    #cc8800;
+  --red:          #ff3333;
+  --red-dim:      #cc2222;
+  --cyan:         #00e5ff;
+  --cyan-dim:     #00b8cc;
+  --white:        #e0e0e0;
+  --grey:         #555555;
+  --grey-light:   #888888;
+  --grey-dark:    #222222;
+  --panel-bg:     #0d120d;
+  --panel-border: #1a2a1a;
+  --btn-bg:       #112211;
+  --btn-hover:    #1a3a1a;
+
+  /* Typography */
+  --font-display: 'Orbitron', monospace, sans-serif;
+  --font-body:    'Share Tech Mono', monospace;
+
+  /* Sizing */
+  --tap-min: 44px;
+}
+
+/* Reset */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-current);
+  color: var(--green);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================
+   Scanline Overlay
+   ============================================ */
+.scanline-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+}
+
+/* ============================================
+   Screens
+   ============================================ */
+.screen {
+  display: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.screen.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================
+   Title Screen
+   ============================================ */
+#screen-title {
+  background: var(--bg-night);
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2rem;
+}
+
+.title-container {
+  z-index: 1;
+}
+
+.title-logo {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 8vw, 4rem);
+  font-weight: 900;
+  color: var(--green);
+  text-shadow:
+    0 0 10px var(--green-glow),
+    0 0 30px var(--green-glow),
+    0 0 60px var(--green-glow);
+  letter-spacing: 0.15em;
+  margin-bottom: 0.5rem;
+  animation: flicker 4s infinite;
+}
+
+@keyframes flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96% { opacity: 0.8; }
+  97% { opacity: 1; }
+  98% { opacity: 0.7; }
+  99% { opacity: 1; }
+}
+
+.title-tagline {
+  font-family: var(--font-body);
+  color: var(--green-dim);
+  font-size: 1rem;
+  margin-bottom: 3rem;
+  letter-spacing: 0.1em;
+}
+
+.title-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.title-version {
+  margin-top: 3rem;
+  color: var(--grey);
+  font-size: 0.75rem;
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+.btn {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 0.75rem 2rem;
+  min-height: var(--tap-min);
+  min-width: 200px;
+  border: 1px solid var(--green-dark);
+  background: var(--btn-bg);
+  color: var(--green);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:active {
+  background: var(--green-dark);
+  color: var(--bg-night);
+}
+
+.btn-primary {
+  border-color: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+}
+
+.btn-primary:active {
+  background: var(--green);
+  color: var(--bg-night);
+}
+
+.btn-secondary {
+  border-color: var(--green-dim);
+  color: var(--green-dim);
+}
+
+.btn-danger {
+  border-color: var(--red-dim);
+  color: var(--red);
+}
+
+.btn-small {
+  font-size: 0.75rem;
+  padding: 0.5rem 1rem;
+  min-width: auto;
+  min-height: 36px;
+}
+
+.btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   Game Header
+   ============================================ */
+#game-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-night);
+  border-bottom: 1px solid var(--panel-border);
+  padding: 0.5rem 1rem;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-row-stats {
+  margin-top: 0.25rem;
+}
+
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-day {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--green);
+}
+
+.header-clock {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--green-dim);
+}
+
+.header-cash {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--green);
+}
+
+.header-cash.danger {
+  color: var(--red);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--grey-light);
+  letter-spacing: 0.1em;
+}
+
+.header-ap {
+  font-size: 1rem;
+  letter-spacing: 0.15em;
+  color: var(--amber);
+}
+
+.energy-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.energy-bar-container {
+  width: 80px;
+  height: 10px;
+  background: var(--grey-dark);
+  border: 1px solid var(--panel-border);
+  border-radius: 2px;
+  position: relative;
+}
+
+.energy-bar {
+  height: 100%;
+  background: var(--cyan);
+  border-radius: 1px;
+  transition: width 0.4s ease, background 0.4s ease;
+  width: 100%;
+}
+
+.energy-bar.low {
+  background: var(--amber);
+}
+
+.energy-bar.critical {
+  background: var(--red);
+  animation: pulse 1s infinite;
+}
+
+.energy-text {
+  position: absolute;
+  right: -2rem;
+  font-size: 0.65rem;
+  color: var(--cyan-dim);
+  width: 1.5rem;
+  text-align: right;
+}
+
+/* ============================================
+   Tabs
+   ============================================ */
+#game-tabs {
+  display: flex;
+  background: var(--bg-night);
+  border-bottom: 1px solid var(--panel-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+#game-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--grey-light);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 0.9rem;
+  min-height: var(--tap-min);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tab.active {
+  color: var(--green);
+  border-bottom-color: var(--green);
+}
+
+/* ============================================
+   Main Content
+   ============================================ */
+#game-main {
+  flex: 1;
+  padding: 0.75rem;
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* ============================================
+   Dashboard Sections
+   ============================================ */
+.dashboard-section {
+  margin-bottom: 1.25rem;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--grey-light);
+  letter-spacing: 0.15em;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.section-hint {
+  font-size: 0.75rem;
+  color: var(--grey);
+  margin-bottom: 0.5rem;
+}
+
+/* Status Grid */
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.status-item {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-label {
+  font-size: 0.65rem;
+  color: var(--grey-light);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.status-value {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--green);
+  margin-top: 0.15rem;
+}
+
+/* ============================================
+   Actions List
+   ============================================ */
+.actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  font-family: var(--font-body);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--green);
+  padding: 0.75rem;
+  min-height: var(--tap-min);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.action-btn:active {
+  background: var(--green-dark);
+  border-color: var(--green);
+}
+
+.action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.action-btn .action-name {
+  font-size: 0.85rem;
+}
+
+.action-btn .action-cost {
+  font-size: 0.7rem;
+  color: var(--amber);
+  white-space: nowrap;
+  margin-left: 0.5rem;
+}
+
+.action-btn .action-desc {
+  font-size: 0.7rem;
+  color: var(--grey-light);
+  display: block;
+  margin-top: 0.15rem;
+}
+
+/* ============================================
+   Log Panel
+   ============================================ */
+.log-panel {
+  margin-top: 1rem;
+}
+
+#log-entries {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+  color: var(--green-dim);
+  line-height: 1.6;
+}
+
+.log-entry {
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.log-entry .log-time {
+  color: var(--grey);
+  margin-right: 0.5rem;
+}
+
+.log-entry.log-good { color: var(--green); }
+.log-entry.log-bad { color: var(--red); }
+.log-entry.log-warn { color: var(--amber); }
+.log-entry.log-info { color: var(--cyan); }
+
+/* ============================================
+   Project Cards
+   ============================================ */
+.project-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.project-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.project-name {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.project-payout {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--amber);
+}
+
+.project-meta {
+  font-size: 0.7rem;
+  color: var(--grey-light);
+  margin-bottom: 0.4rem;
+}
+
+.project-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--grey-dark);
+  border-radius: 2px;
+  margin: 0.4rem 0;
+}
+
+.project-progress-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.project-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.project-expires {
+  font-size: 0.65rem;
+  color: var(--red-dim);
+}
+
+.empty-state {
+  font-size: 0.8rem;
+  color: var(--grey);
+  text-align: center;
+  padding: 1.5rem;
+  border: 1px dashed var(--panel-border);
+}
+
+/* ============================================
+   Game Footer
+   ============================================ */
+#game-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  padding: 0.5rem 1rem;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-night);
+  border-top: 1px solid var(--panel-border);
+}
+
+.btn-end-day {
+  width: 100%;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 0.75rem;
+  min-height: var(--tap-min);
+  background: var(--btn-bg);
+  border: 1px solid var(--cyan-dim);
+  color: var(--cyan);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-end-day:active {
+  background: var(--cyan-dim);
+  color: var(--bg-night);
+}
+
+/* ============================================
+   Day Transition Overlay
+   ============================================ */
+.day-transition {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 500;
+  background: var(--bg-night);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.day-transition.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.transition-scanlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    rgba(0, 255, 65, 0.03) 1px,
+    rgba(0, 255, 65, 0.03) 2px
+  );
+  animation: scanmove 2s linear infinite;
+}
+
+@keyframes scanmove {
+  from { transform: translateY(0); }
+  to { transform: translateY(4px); }
+}
+
+.transition-content {
+  text-align: center;
+  z-index: 1;
+}
+
+.transition-text {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--green-dim);
+  margin-bottom: 1rem;
+  letter-spacing: 0.15em;
+}
+
+.transition-day {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--green);
+  text-shadow: 0 0 20px var(--green-glow);
+  letter-spacing: 0.2em;
+}
+
+/* ============================================
+   Event Modal
+   ============================================ */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 400;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: var(--panel-bg);
+  border: 1px solid var(--green-dark);
+  padding: 1.5rem;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 0 30px rgba(0, 255, 65, 0.1);
+}
+
+.modal-content h3 {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--green);
+  margin-bottom: 0.75rem;
+}
+
+.modal-content p {
+  font-size: 0.8rem;
+  color: var(--green-dim);
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+#event-modal-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ============================================
+   Overnight Events Panel
+   ============================================ */
+.event-panel {
+  margin-bottom: 1rem;
+  border: 1px solid var(--cyan-dim);
+  background: rgba(0, 229, 255, 0.05);
+  padding: 0.75rem;
+}
+
+.event-panel h3 {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  color: var(--cyan);
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+
+.event-item {
+  font-size: 0.8rem;
+  color: var(--green-dim);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.event-item:last-child {
+  border-bottom: none;
+}
+
+/* ============================================
+   Night Push Prompt
+   ============================================ */
+.night-push-prompt {
+  text-align: center;
+  padding: 1rem;
+}
+
+.night-push-prompt p {
+  font-size: 0.85rem;
+  color: var(--amber);
+  margin-bottom: 1rem;
+}
+
+.night-push-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+/* ============================================
+   Background time-of-day theming
+   ============================================ */
+body.time-night     { --bg-current: var(--bg-night); }
+body.time-dawn      { --bg-current: var(--bg-dawn); }
+body.time-morning   { --bg-current: var(--bg-morning); }
+body.time-afternoon { --bg-current: var(--bg-afternoon); }
+body.time-dusk      { --bg-current: var(--bg-dusk); }
+
+#screen-game {
+  background: var(--bg-current);
+  transition: background 1s ease;
+}
+
+/* ============================================
+   Skill Bars (Team/Candidates)
+   ============================================ */
+.skill-bars {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.4rem 0;
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.skill-label {
+  font-size: 0.6rem;
+  color: var(--grey-light);
+  letter-spacing: 0.05em;
+  width: 2rem;
+}
+
+.skill-dots {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+}
+
+/* ============================================
+   Candidate Role Tag
+   ============================================ */
+.candidate-role {
+  font-size: 0.7rem;
+  color: var(--cyan-dim);
+  white-space: nowrap;
+}
+
+.candidate-perk {
+  font-size: 0.7rem;
+  color: var(--green-dim);
+  background: rgba(0, 255, 65, 0.05);
+  border-left: 2px solid var(--green-dark);
+  padding: 0.3rem 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.candidate-flaw {
+  font-size: 0.7rem;
+  color: var(--red-dim);
+  background: rgba(255, 51, 51, 0.05);
+  border-left: 2px solid var(--red-dim);
+  padding: 0.3rem 0.5rem;
+  margin-top: 0.3rem;
+}
+
+/* ============================================
+   Payroll Banner
+   ============================================ */
+.payroll-banner {
+  background: rgba(255, 170, 0, 0.08);
+  border: 1px solid var(--amber-dim);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  color: var(--amber);
+}
+
+.payroll-label {
+  color: var(--grey-light);
+  margin-right: 0.3rem;
+}
+
+/* ============================================
+   Market Bars
+   ============================================ */
+.market-bar-row {
+  margin-bottom: 0.75rem;
+}
+
+.market-bar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.2rem;
+}
+
+.market-bar-name {
+  font-size: 0.8rem;
+  color: var(--green);
+  font-weight: bold;
+}
+
+.market-bar-focus {
+  font-size: 0.65rem;
+  color: var(--grey-light);
+  margin-left: 0.5rem;
+  flex: 1;
+  text-align: left;
+  margin-left: 0.75rem;
+}
+
+.market-bar-pct {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  color: var(--white);
+}
+
+.market-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--grey-dark);
+  border-radius: 2px;
+}
+
+.market-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+/* ============================================
+   Utility
+   ============================================ */
+.hidden { display: none !important; }
+.text-red { color: var(--red); }
+.text-amber { color: var(--amber); }
+.text-green { color: var(--green); }
+.text-cyan { color: var(--cyan); }
+
+/* ============================================
+   Responsive — small tweaks for wider screens
+   ============================================ */
+@media (min-width: 600px) {
+  #game-main {
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  #game-footer {
+    display: flex;
+    justify-content: center;
+  }
+
+  .btn-end-day {
+    max-width: 500px;
+  }
+}
