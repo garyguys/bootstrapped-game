@@ -1,5 +1,8 @@
 /* ============================================
    team.js — Hiring, Candidates, Team Management
+   Skills now 1-10. Gender + ethnicity for avatars.
+   Patience system for negotiation.
+   Candidate withdrawal after 3-5 days.
    ============================================ */
 
 var ROLES = [
@@ -11,23 +14,38 @@ var ROLES = [
   { id: 'pm',         name: 'PM',         icon: '@' },
 ];
 
-// Operations roles that grant bonus AP
 var OPS_ROLES = ['pm', 'sales', 'marketer'];
 
-var CANDIDATE_FIRST_NAMES = [
-  'Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Quinn', 'Avery',
-  'Sam', 'Charlie', 'Dakota', 'Harper', 'Kai', 'Reese', 'Finley', 'Rowan',
-  'Phoenix', 'Sage', 'Blake', 'Drew', 'Emery', 'Lane', 'Noel', 'Tatum',
-  'Arin', 'Jules', 'Mika', 'Remy', 'Skyler', 'Zion',
+var MALE_FIRST_NAMES = [
+  'James', 'Marcus', 'David', 'Ryan', 'Carlos', 'Wei', 'Kenji', 'Amir',
+  'Erik', 'Ivan', 'Leo', 'Omar', 'Raj', 'Andre', 'Daniel', 'Ethan',
+  'Felix', 'Grant', 'Hugo', 'Jack', 'Kyle', 'Liam', 'Noah', 'Oscar',
+  'Alex', 'Jordan', 'Sam', 'Blake', 'Drew', 'Noel',
+];
+
+var FEMALE_FIRST_NAMES = [
+  'Sarah', 'Emily', 'Maya', 'Priya', 'Yuki', 'Fatima', 'Sofia', 'Elena',
+  'Anya', 'Nina', 'Lina', 'Zara', 'Mei', 'Luna', 'Clara', 'Diana',
+  'Eva', 'Grace', 'Hannah', 'Iris', 'Julia', 'Kate', 'Lily', 'Mia',
+  'Taylor', 'Riley', 'Quinn', 'Avery', 'Harper', 'Sage',
 ];
 
 var CANDIDATE_LAST_NAMES = [
   'Chen', 'Patel', 'Kim', 'Singh', 'Nakamura', 'Garcia', 'Okafor', 'Muller',
   'Santos', 'Johansson', 'Park', 'Nguyen', 'Ali', 'Schmidt', 'Cohen', 'Tanaka',
   'Rivera', 'Volkov', 'Dubois', 'Ibrahim', 'Larsson', 'Torres', 'Yamamoto', 'Shah',
+  'Lee', 'Wang', 'Reyes', 'Lopez', 'Brown', 'Davis', 'Wilson', 'Zhang',
 ];
 
-// Perks candidates might have
+// Work history company names for background generation
+var WORK_HISTORY_COMPANIES = [
+  'CloudBase Inc', 'Vertex Labs', 'DataPoint', 'SparkTech', 'BlueStar Digital',
+  'SilverStack', 'NorthCode', 'QuantumBit', 'RapidScale', 'IronPeak Systems',
+  'Fusion Works', 'CoreNode', 'ByteShift', 'TerraLogic', 'PulseWave',
+  'ClearMind AI', 'DeepRoute', 'StackHive', 'Pluto Systems', 'GreenThread',
+];
+
+// Perks — now with 1-10 skill scale considerations
 var CANDIDATE_PERKS = [
   { id: 'night_owl',      name: 'Night Owl',      desc: 'Works overtime: +5% daily project progress', effect: 'bonus_progress', value: 5 },
   { id: 'mentor',         name: 'Mentor',          desc: 'Boosts nearby team skills by +1 over time', effect: 'team_boost', value: 1 },
@@ -43,7 +61,6 @@ var CANDIDATE_PERKS = [
   { id: 'quick_learner',  name: 'Quick Learner',   desc: 'All skills improve by +1 after 7 days', effect: 'growth', value: 1 },
 ];
 
-// Flaws
 var CANDIDATE_FLAWS = [
   { id: 'flaky',          name: 'Flaky',           desc: '25% chance of no-show each day', effect: 'unreliable', value: 0.25 },
   { id: 'prima_donna',    name: 'Prima Donna',     desc: 'Quits if not on the biggest project', effect: 'demanding', value: 0 },
@@ -55,96 +72,116 @@ var CANDIDATE_FLAWS = [
 
 var _nextCandidateId = 1;
 
-// Get market salary modifier based on competitor ecosystem
+// Market salary modifier from competitor ecosystem
 function getMarketSalaryModifier() {
   if (!G.competitors || G.competitors.length === 0) return 1.0;
-
   var aliveComps = G.competitors.filter(function(c) { return c.alive; });
   if (aliveComps.length === 0) return 1.0;
 
   var modifier = 1.0;
   for (var i = 0; i < aliveComps.length; i++) {
     var c = aliveComps[i];
-    if (c.style === 'megacorp') {
-      modifier += 0.08; // Megacorps drive salaries up
-    } else if (c.style === 'vc_funded') {
-      if (c.share > 10) {
-        modifier += 0.06; // Well-funded startups pay high
-      } else {
-        modifier += 0.03; // Smaller funded startups, moderate
-      }
-    } else if (c.style === 'budget') {
-      modifier -= 0.02; // Budget shops push salaries down slightly
-    }
-    // Niche startups: neutral
+    if (c.style === 'megacorp') modifier += 0.08;
+    else if (c.style === 'vc_funded') modifier += c.share > 10 ? 0.06 : 0.03;
+    else if (c.style === 'budget') modifier -= 0.02;
   }
-
   return Math.max(0.8, Math.min(1.5, modifier));
+}
+
+// Generate work history for a person
+function generateWorkHistory(level, roleId) {
+  var history = [];
+  var count = Math.min(level, randomInt(0, level));
+  for (var i = 0; i < count; i++) {
+    // Mix competitor names and generic companies
+    var companyPool = WORK_HISTORY_COMPANIES.slice();
+    if (G.competitors) {
+      for (var j = 0; j < G.competitors.length; j++) {
+        companyPool.push(G.competitors[j].name);
+      }
+    }
+    var company = randomChoice(companyPool);
+    // Avoid duplicates
+    if (history.some(function(h) { return h.company === company; })) continue;
+    history.push({
+      company: company,
+      role: roleId,
+      years: randomInt(1, 4),
+    });
+  }
+  return history;
 }
 
 function generateCandidate() {
   var role = randomChoice(ROLES);
   var level = randomInt(1, 3); // 1=junior, 2=mid, 3=senior
   var levelNames = ['Junior', 'Mid-Level', 'Senior'];
+  var gender = Math.random() < 0.5 ? 'male' : 'female';
 
-  // Skills rated 1-5, influenced by level
-  var baseMin = level;
-  var baseMax = level + 2;
-  var technical = Math.min(5, randomInt(baseMin, baseMax));
-  var communication = Math.min(5, randomInt(Math.max(1, baseMin - 1), baseMax));
-  var reliability = Math.min(5, randomInt(baseMin, baseMax));
+  var firstName = gender === 'female' ? randomChoice(FEMALE_FIRST_NAMES) : randomChoice(MALE_FIRST_NAMES);
+  var lastName = randomChoice(CANDIDATE_LAST_NAMES);
+
+  // Skills rated 1-10, influenced by level
+  var baseMin = level * 2 - 1;
+  var baseMax = level * 2 + 3;
+  var technical = Math.min(10, randomInt(baseMin, baseMax));
+  var communication = Math.min(10, randomInt(Math.max(1, baseMin - 1), baseMax));
+  var reliability = Math.min(10, randomInt(baseMin, baseMax));
 
   // Role-based skill skew
   if (role.id === 'developer' || role.id === 'devops') {
-    technical = Math.min(5, technical + 1);
+    technical = Math.min(10, technical + 1);
   } else if (role.id === 'sales' || role.id === 'marketer') {
-    communication = Math.min(5, communication + 1);
+    communication = Math.min(10, communication + 1);
   } else if (role.id === 'pm') {
-    reliability = Math.min(5, reliability + 1);
+    reliability = Math.min(10, reliability + 1);
   }
 
-  // Base weekly salary (halved from biweekly for weekly payroll)
+  // Base weekly salary
   var salaryBase = [200, 400, 700];
   var salary = salaryBase[level - 1] + randomInt(-50, 100);
-  salary = Math.round(salary / 25) * 25; // round to 25
+  salary = Math.round(salary / 25) * 25;
 
-  // Apply market salary modifier
+  // Market modifier
   var marketMod = getMarketSalaryModifier();
   salary = Math.round(salary * marketMod / 25) * 25;
 
-  // Perk (60% chance) and flaw (30% chance, hidden until hired)
+  // Perk and flaw
   var perk = null;
-  if (Math.random() < 0.6) {
-    perk = randomChoice(CANDIDATE_PERKS);
-  }
-
+  if (Math.random() < 0.6) perk = randomChoice(CANDIDATE_PERKS);
   var flaw = null;
-  if (Math.random() < 0.30) {
-    flaw = randomChoice(CANDIDATE_FLAWS);
-  }
+  if (Math.random() < 0.30) flaw = randomChoice(CANDIDATE_FLAWS);
 
-  // Ex-FAANG perk: top salary
   if (perk && perk.id === 'ex_faang') {
     salary = Math.round(salary * 1.4 / 25) * 25;
   }
 
+  // Hidden patience for negotiation (1-5, higher = more patient)
+  var patience = randomInt(1, 5);
+
   return {
     id: _nextCandidateId++,
-    name: randomChoice(CANDIDATE_FIRST_NAMES) + ' ' + randomChoice(CANDIDATE_LAST_NAMES),
+    name: firstName + ' ' + lastName,
+    gender: gender,
     role: role,
     level: level,
     levelName: levelNames[level - 1],
     technical: technical,
     communication: communication,
     reliability: reliability,
-    salary: salary, // weekly
-    askingSalary: salary, // original ask for negotiation
+    salary: salary,
+    askingSalary: salary,
     perk: perk,
     flaw: flaw,
     flawRevealed: false,
     skillsRevealed: 0,
     loyalty: 70 + randomInt(-10, 10),
     daysEmployed: 0,
+    patience: patience,
+    patienceUsed: 0, // Tracks negotiation attempts
+    arrivedDay: G.day, // For withdrawal timer
+    workHistory: generateWorkHistory(level, role.id),
+    assignedProjectId: null, // Which project they're assigned to
   };
 }
 
@@ -170,50 +207,64 @@ function interviewCandidate(candidateId) {
 
   c.skillsRevealed += 1;
   if (c.skillsRevealed === 1) {
-    addLog('Interviewed ' + c.name + ': ' + c.role.name + ' (' + c.levelName + '). Technical: ' + c.technical + '/5.', 'info');
+    addLog('Interviewed ' + c.name + ': ' + c.role.name + ' (' + c.levelName + '). Technical: ' + c.technical + '/10.', 'info');
   } else {
     var perkText = c.perk ? ' Perk: ' + c.perk.name + '.' : '';
-    addLog('Deep interview with ' + c.name + ': Comm ' + c.communication + '/5, Reliability ' + c.reliability + '/5.' + perkText, 'info');
+    addLog('Deep interview with ' + c.name + ': Comm ' + c.communication + '/10, Reliability ' + c.reliability + '/10.' + perkText, 'info');
   }
   return true;
 }
 
-// Salary negotiation
+// Salary negotiation with patience system
 function negotiateSalary(candidateId, offeredSalary) {
   var c = findCandidate(candidateId);
-  if (!c) return { accepted: false, message: 'Candidate not found.' };
+  if (!c) return { accepted: false, message: 'Candidate not found.', withdrawn: false };
 
   var askingSalary = c.askingSalary;
   var ratio = offeredSalary / askingSalary;
 
+  // Track negotiation attempt
+  c.patienceUsed += 1;
+
+  // Check if patience exhausted
+  if (c.patienceUsed > c.patience && ratio < 1.0) {
+    // Candidate withdraws
+    G.candidates = G.candidates.filter(function(x) { return x.id !== candidateId; });
+    addLog(c.name + ' lost patience and withdrew their application!', 'bad');
+    return { accepted: false, message: c.name + ' is fed up with negotiations and has withdrawn!', withdrawn: true };
+  }
+
   if (ratio >= 1.0) {
-    // Meeting or exceeding ask - always accepted
     c.salary = offeredSalary;
     var bonusLoyalty = Math.min(20, Math.round((ratio - 1.0) * 100));
     c.loyalty = Math.min(100, c.loyalty + bonusLoyalty);
-    return { accepted: true, message: c.name + ' happily accepts $' + offeredSalary + '/wk!' };
+    return { accepted: true, message: c.name + ' happily accepts $' + offeredSalary + '/wk!', withdrawn: false };
   } else if (ratio >= 0.85) {
-    // 85-99% of ask: decent chance of acceptance
-    var chance = 0.5 + (ratio - 0.85) * 3.3; // 50% at 85%, ~100% at 100%
+    var chance = 0.5 + (ratio - 0.85) * 3.3;
     if (Math.random() < chance) {
       c.salary = offeredSalary;
-      return { accepted: true, message: c.name + ' agrees to $' + offeredSalary + '/wk after some thought.' };
+      return { accepted: true, message: c.name + ' agrees to $' + offeredSalary + '/wk after some thought.', withdrawn: false };
     } else {
-      return { accepted: false, message: c.name + ' declines your offer. They want at least $' + askingSalary + '/wk.' };
+      return { accepted: false, message: c.name + ' declines. They want at least $' + askingSalary + '/wk. (' + (c.patience - c.patienceUsed) + ' patience remaining)', withdrawn: false };
     }
   } else if (ratio >= 0.70) {
-    // 70-84%: low chance
-    var lowChance = (ratio - 0.70) * 3.5; // 0% at 70%, ~50% at 84%
+    var lowChance = (ratio - 0.70) * 3.5;
     if (Math.random() < lowChance) {
       c.salary = offeredSalary;
-      c.loyalty = Math.max(30, c.loyalty - 10); // Slightly resentful
-      return { accepted: true, message: c.name + ' reluctantly accepts $' + offeredSalary + '/wk.' };
+      c.loyalty = Math.max(30, c.loyalty - 10);
+      return { accepted: true, message: c.name + ' reluctantly accepts $' + offeredSalary + '/wk.', withdrawn: false };
     } else {
-      return { accepted: false, message: c.name + ' is insulted by the lowball. They wanted $' + askingSalary + '/wk.' };
+      return { accepted: false, message: c.name + ' is insulted by the lowball. (' + (c.patience - c.patienceUsed) + ' patience remaining)', withdrawn: false };
     }
   } else {
-    // Below 70%: auto-reject
-    return { accepted: false, message: c.name + ' laughs at your offer. Not even close to their $' + askingSalary + '/wk ask.' };
+    // Below 70%: auto-reject, costs extra patience
+    c.patienceUsed += 1;
+    if (c.patienceUsed >= c.patience) {
+      G.candidates = G.candidates.filter(function(x) { return x.id !== candidateId; });
+      addLog(c.name + ' laughed at your offer and left!', 'bad');
+      return { accepted: false, message: c.name + ' laughed at your insulting offer and withdrew!', withdrawn: true };
+    }
+    return { accepted: false, message: c.name + ' laughs at your offer. Not even close to $' + askingSalary + '/wk. (' + (c.patience - c.patienceUsed) + ' patience remaining)', withdrawn: false };
   }
 }
 
@@ -221,20 +272,15 @@ function hireCandidate(candidateId) {
   var c = findCandidate(candidateId);
   if (!c) return false;
 
-  // Remove from candidates
   G.candidates = G.candidates.filter(function(x) { return x.id !== candidateId; });
-
-  // Add to team
   c.daysEmployed = 0;
   G.team.push(c);
 
-  // Prestige perk
   if (c.perk && c.perk.id === 'ex_faang') {
     G.reputation += c.perk.value;
     addLog(c.name + '\'s FAANG background impressed clients. +' + c.perk.value + ' rep.', 'good');
   }
 
-  // Reveal flaw after hiring (roguelike surprise)
   if (c.flaw && Math.random() < 0.5) {
     c.flawRevealed = true;
     addLog('Uh oh... ' + c.name + ' turns out to be: ' + c.flaw.name + ' — ' + c.flaw.desc, 'bad');
@@ -252,9 +298,15 @@ function fireEmployee(employeeId) {
   if (idx === -1) return false;
 
   var emp = G.team.splice(idx, 1)[0];
+  // Unassign from projects
+  for (var p = 0; p < G.activeProjects.length; p++) {
+    var proj = G.activeProjects[p];
+    if (proj.assignedTeam) {
+      proj.assignedTeam = proj.assignedTeam.filter(function(id) { return id !== emp.id; });
+    }
+  }
   addLog('Fired ' + emp.name + '. They did not take it well.', 'bad');
 
-  // Morale hit for remaining team
   for (var j = 0; j < G.team.length; j++) {
     G.team[j].loyalty = Math.max(0, G.team[j].loyalty - 10);
   }
@@ -275,6 +327,22 @@ function findEmployee(id) {
   return null;
 }
 
+// Candidate withdrawal check — called at start of each day
+function ageCandidates() {
+  var remaining = [];
+  for (var i = 0; i < G.candidates.length; i++) {
+    var c = G.candidates[i];
+    var daysWaiting = G.day - c.arrivedDay;
+    var withdrawDays = randomInt(3, 5);
+    if (daysWaiting >= withdrawDays) {
+      addLog(c.name + ' got tired of waiting and withdrew their application.', 'warn');
+    } else {
+      remaining.push(c);
+    }
+  }
+  G.candidates = remaining;
+}
+
 // Team daily tick
 function tickTeam() {
   var quitters = [];
@@ -283,9 +351,9 @@ function tickTeam() {
     var emp = G.team[i];
     emp.daysEmployed += 1;
 
-    // Loyalty decay
-    var decayRate = 1;
-    if (emp.flaw && emp.flaw.id === 'job_hopper') decayRate = 2;
+    // Loyalty decay — REL (reliability) slows decay
+    var decayRate = Math.max(0.5, 1.5 - (emp.reliability * 0.1));
+    if (emp.flaw && emp.flaw.id === 'job_hopper') decayRate *= 2;
     emp.loyalty = Math.max(0, emp.loyalty - decayRate);
 
     // Overqualified flaw: leaves after X days
@@ -294,118 +362,160 @@ function tickTeam() {
       continue;
     }
 
-    // Quick learner perk
+    // Quick learner perk (skills capped at 10)
     if (emp.perk && emp.perk.id === 'quick_learner' && emp.daysEmployed === 7) {
-      emp.technical = Math.min(5, emp.technical + 1);
-      emp.communication = Math.min(5, emp.communication + 1);
-      emp.reliability = Math.min(5, emp.reliability + 1);
+      emp.technical = Math.min(10, emp.technical + 1);
+      emp.communication = Math.min(10, emp.communication + 1);
+      emp.reliability = Math.min(10, emp.reliability + 1);
       addLog(emp.name + ' has gotten up to speed. All skills +1.', 'good');
     }
 
     // Open source contributor perk
     if (emp.perk && emp.perk.id === 'open_source' && emp.daysEmployed % 10 === 0 && emp.daysEmployed > 0) {
-      emp.technical = Math.min(5, emp.technical + 1);
+      emp.technical = Math.min(10, emp.technical + 1);
       addLog(emp.name + '\'s open source work pays off. Technical +1.', 'good');
     }
 
-    // Quit if loyalty bottoms out
+    // Mentor perk: boost random teammate skill
+    if (emp.perk && emp.perk.id === 'mentor' && emp.daysEmployed % 14 === 0 && emp.daysEmployed > 0) {
+      var teammates = G.team.filter(function(e) { return e.id !== emp.id; });
+      if (teammates.length > 0) {
+        var target = randomChoice(teammates);
+        var skillChoice = Math.random();
+        if (skillChoice < 0.33) target.technical = Math.min(10, target.technical + 1);
+        else if (skillChoice < 0.66) target.communication = Math.min(10, target.communication + 1);
+        else target.reliability = Math.min(10, target.reliability + 1);
+        addLog(emp.name + ' mentored ' + target.name + '. A skill improved!', 'good');
+      }
+    }
+
     if (emp.loyalty <= 10) {
       quitters.push(emp);
     }
   }
 
-  // Process quitters
   for (var j = 0; j < quitters.length; j++) {
     var q = quitters[j];
     G.team = G.team.filter(function(e) { return e.id !== q.id; });
+    // Unassign from projects
+    for (var p = 0; p < G.activeProjects.length; p++) {
+      var proj = G.activeProjects[p];
+      if (proj.assignedTeam) {
+        proj.assignedTeam = proj.assignedTeam.filter(function(id) { return id !== q.id; });
+      }
+    }
     addLog(q.name + ' quit! ' + (q.flaw && q.flaw.id === 'overqualified' ? 'They were overqualified all along.' : 'Morale was too low.'), 'bad');
     G.overnightEvents.push(q.name + ' quit the company.');
   }
 }
 
-// Calculate team contribution to project progress per day
+// Calculate team contribution to a specific project per day
+// Now uses assignment system — only assigned team members contribute
 function getTeamProjectBonus(project) {
   var bonus = 0;
   var devCount = 0;
 
-  for (var i = 0; i < G.team.length; i++) {
-    var emp = G.team[i];
+  // Get assigned members or fall back to all devs/designers/devops
+  var workers;
+  if (project.assignedTeam && project.assignedTeam.length > 0) {
+    workers = G.team.filter(function(emp) {
+      return project.assignedTeam.indexOf(emp.id) !== -1;
+    });
+  } else {
+    // No specific assignment: all relevant roles contribute (backward compat)
+    workers = G.team.filter(function(emp) {
+      return emp.role.id === 'developer' || emp.role.id === 'designer' || emp.role.id === 'devops';
+    });
+  }
 
-    // Only devs/designers/devops contribute to project progress
+  for (var i = 0; i < workers.length; i++) {
+    var emp = workers[i];
     if (emp.role.id !== 'developer' && emp.role.id !== 'designer' && emp.role.id !== 'devops') continue;
-
     devCount++;
 
     // Flaky check
     if (emp.flaw && emp.flaw.id === 'flaky' && Math.random() < emp.flaw.value) continue;
 
-    // Slow starter
     var effectiveness = 1.0;
-    if (emp.flaw && emp.flaw.id === 'slow_starter' && emp.daysEmployed < emp.flaw.value) {
-      effectiveness = 0.5;
-    }
+    if (emp.flaw && emp.flaw.id === 'slow_starter' && emp.daysEmployed < emp.flaw.value) effectiveness = 0.5;
+    if (emp.flaw && emp.flaw.id === 'secret_slacker') effectiveness *= emp.flaw.value;
 
-    // Secret slacker
-    if (emp.flaw && emp.flaw.id === 'secret_slacker') {
-      effectiveness *= emp.flaw.value;
-    }
+    // Base: technical * 2% per day (scaled for 1-10 system)
+    var contrib = emp.technical * 2 * effectiveness;
 
-    // Base contribution: technical skill * 3% per day
-    var contrib = emp.technical * 3 * effectiveness;
-
-    // Night owl perk
-    if (emp.perk && emp.perk.id === 'night_owl') {
-      contrib += emp.perk.value;
-    }
-
-    // Perfectionist perk: slower but more rep
-    if (emp.perk && emp.perk.id === 'perfectionist') {
-      contrib *= 0.9;
-    }
+    if (emp.perk && emp.perk.id === 'night_owl') contrib += emp.perk.value;
+    if (emp.perk && emp.perk.id === 'perfectionist') contrib *= 0.9;
 
     bonus += contrib;
   }
 
-  // Team synergy: more devs = slightly higher output per dev (collaboration bonus)
-  if (devCount >= 3) {
-    bonus *= 1.1; // 10% synergy bonus with 3+ devs
-  }
-  if (devCount >= 5) {
-    bonus *= 1.05; // Additional 5% with 5+ devs
-  }
+  if (devCount >= 3) bonus *= 1.1;
+  if (devCount >= 5) bonus *= 1.05;
 
   return bonus;
 }
 
-// Get total weekly payroll
 function getPayrollAmount() {
   var total = 0;
   for (var i = 0; i < G.team.length; i++) {
     var emp = G.team[i];
     var salary = emp.salary;
-    if (emp.perk && emp.perk.id === 'penny_pincher') {
-      salary *= (1 - emp.perk.value);
-    }
-    if (emp.perk && emp.perk.id === 'remote_only') {
-      salary *= (1 - emp.perk.value);
-    }
+    if (emp.perk && emp.perk.id === 'penny_pincher') salary *= (1 - emp.perk.value);
+    if (emp.perk && emp.perk.id === 'remote_only') salary *= (1 - emp.perk.value);
     total += salary;
   }
   return Math.round(total);
 }
 
-// Count operations team members (for AP bonus)
 function getOpsTeamCount() {
   var count = 0;
   for (var i = 0; i < G.team.length; i++) {
-    if (OPS_ROLES.indexOf(G.team[i].role.id) !== -1) {
-      count++;
-    }
+    if (OPS_ROLES.indexOf(G.team[i].role.id) !== -1) count++;
   }
   return count;
 }
 
+// Assign a team member to a project
+function assignToProject(employeeId, projectId) {
+  var emp = findEmployee(employeeId);
+  if (!emp) return false;
+
+  var proj = null;
+  for (var i = 0; i < G.activeProjects.length; i++) {
+    if (G.activeProjects[i].id === projectId) { proj = G.activeProjects[i]; break; }
+  }
+  if (!proj) return false;
+
+  if (!proj.assignedTeam) proj.assignedTeam = [];
+
+  // Remove from any other project first
+  for (var j = 0; j < G.activeProjects.length; j++) {
+    var p = G.activeProjects[j];
+    if (p.assignedTeam) {
+      p.assignedTeam = p.assignedTeam.filter(function(id) { return id !== employeeId; });
+    }
+  }
+
+  proj.assignedTeam.push(employeeId);
+  emp.assignedProjectId = projectId;
+  addLog(emp.name + ' assigned to ' + proj.name + '.', 'info');
+  return true;
+}
+
+function unassignFromProject(employeeId) {
+  var emp = findEmployee(employeeId);
+  if (!emp) return;
+  for (var j = 0; j < G.activeProjects.length; j++) {
+    var p = G.activeProjects[j];
+    if (p.assignedTeam) {
+      p.assignedTeam = p.assignedTeam.filter(function(id) { return id !== employeeId; });
+    }
+  }
+  emp.assignedProjectId = null;
+}
+
 // Scout a competitor to see their team info
+// Now supports multiple scout levels
 function scoutCompetitor(competitorId) {
   var comp = null;
   for (var i = 0; i < G.competitors.length; i++) {
@@ -413,17 +523,38 @@ function scoutCompetitor(competitorId) {
   }
   if (!comp || !comp.alive) return false;
 
-  // Generate scouted team data if not already scouted
   if (!comp.scoutedTeam) {
     comp.scoutedTeam = [];
-    var teamSize = Math.max(2, Math.floor(comp.share / 3));
+    // Larger companies have more team members with higher skills
+    var teamSize = Math.max(2, Math.floor(comp.share / 2.5));
     for (var j = 0; j < teamSize; j++) {
-      comp.scoutedTeam.push(generateCandidate());
+      var member = generateCandidate();
+      // Bigger companies = higher skills
+      if (comp.style === 'megacorp') {
+        member.technical = Math.min(10, member.technical + 3);
+        member.communication = Math.min(10, member.communication + 2);
+        member.salary = Math.round(member.salary * 1.5 / 25) * 25;
+      } else if (comp.style === 'vc_funded') {
+        member.technical = Math.min(10, member.technical + 1);
+        member.salary = Math.round(member.salary * 1.2 / 25) * 25;
+      }
+      // Some members won't leave
+      member.willingToLeave = Math.random() < (comp.style === 'megacorp' ? 0.3 : comp.style === 'vc_funded' ? 0.5 : 0.7);
+      member.scoutLevel = 0; // 0=name/role only, 1=skills, 2=loyalty/willingness
+      comp.scoutedTeam.push(member);
     }
     comp.scouted = true;
+    comp.scoutLevel = 1;
+  } else if (comp.scoutLevel < 3) {
+    // Additional scouting reveals more info
+    comp.scoutLevel = Math.min(3, (comp.scoutLevel || 1) + 1);
+    for (var k = 0; k < comp.scoutedTeam.length; k++) {
+      comp.scoutedTeam[k].scoutLevel = Math.min(2, comp.scoutedTeam[k].scoutLevel + 1);
+    }
   }
 
-  addLog('Scouted ' + comp.name + ' — found ' + comp.scoutedTeam.length + ' team members.', 'info');
+  var levelText = comp.scoutLevel === 1 ? 'names and roles' : comp.scoutLevel === 2 ? 'skills and salaries' : 'loyalty and willingness';
+  addLog('Scouted ' + comp.name + ' — revealed ' + levelText + '.', 'info');
   return true;
 }
 
@@ -443,27 +574,31 @@ function poachEmployee(competitorId, candidateId) {
 
   var target = comp.scoutedTeam[targetIdx];
 
-  // Success chance: higher rep = better chance. Megacorps harder to poach from.
+  // Check willingness
+  if (target.willingToLeave === false) {
+    addLog(target.name + ' at ' + comp.name + ' is not interested in leaving.', 'warn');
+    return { success: false, message: target.name + ' is simply not interested in being poached.' };
+  }
+
   var baseChance = 0.4;
   if (comp.style === 'megacorp') baseChance = 0.15;
   else if (comp.style === 'vc_funded') baseChance = 0.25;
   else if (comp.style === 'budget') baseChance = 0.55;
 
-  // Rep advantage helps
   var repBonus = Math.min(0.3, G.reputation * 0.002);
   var finalChance = Math.min(0.85, baseChance + repBonus);
 
   if (Math.random() < finalChance) {
-    // Success — add to candidates with boosted salary expectation
     comp.scoutedTeam.splice(targetIdx, 1);
-    target.salary = Math.round(target.salary * 1.2 / 25) * 25; // They want a raise
+    // Poached employees want higher salary from bigger companies
+    var salaryMult = comp.style === 'megacorp' ? 1.4 : comp.style === 'vc_funded' ? 1.3 : 1.2;
+    target.salary = Math.round(target.salary * salaryMult / 25) * 25;
     target.askingSalary = target.salary;
-    target.skillsRevealed = 2; // Fully revealed since you scouted them
+    target.skillsRevealed = 2;
     G.candidates.push(target);
     addLog('Poached ' + target.name + ' from ' + comp.name + '! They want $' + target.salary + '/wk.', 'good');
     return { success: true, message: 'Successfully poached ' + target.name + '!' };
   } else {
-    // Failed — rep loss
     G.reputation = Math.max(0, G.reputation - 2);
     addLog('Failed to poach from ' + comp.name + '. Word got out. -2 rep.', 'bad');
     return { success: false, message: 'Poaching attempt failed. -2 rep.' };

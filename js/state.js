@@ -2,9 +2,9 @@
    state.js — Game State Object + Save/Load
    ============================================ */
 
-const DAYS_OF_WEEK = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+var DAYS_OF_WEEK = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
-const STAGES = [
+var STAGES = [
   { id: 'freelancer',  name: 'Freelancer',      icon: '' },
   { id: 'home_office', name: 'Home Office',      icon: '' },
   { id: 'micro',       name: 'Micro Agency',     icon: '' },
@@ -19,6 +19,16 @@ function createDefaultState() {
     day: 1,
     timeSlot: 0,
     dayOfWeek: 0,
+
+    // Player character
+    player: {
+      name: 'Founder',
+      companyName: 'My Startup',
+      gender: 'male',
+      technical: 2,
+      communication: 2,
+      reliability: 2,
+    },
 
     // Resources
     cash: 500,
@@ -50,7 +60,8 @@ function createDefaultState() {
     candidates: [],
     jobPosted: false,
     lastJobPostDay: -99,
-    nextPayrollDay: 7,    // Weekly payroll
+    nextPayrollDay: 7,
+    lastPartyDay: -99,
 
     // Competitors / Market
     competitors: [],
@@ -82,11 +93,11 @@ function createDefaultState() {
 }
 
 // Global game state
-let G = createDefaultState();
+var G = createDefaultState();
 
 // --- Save / Load ---
 
-const SAVE_KEY = 'bootstrapped_v2_save';
+var SAVE_KEY = 'bootstrapped_v3_save';
 
 function saveGame() {
   try {
@@ -98,9 +109,9 @@ function saveGame() {
 
 function loadGame() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    var raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
-    const saved = JSON.parse(raw);
+    var saved = JSON.parse(raw);
     G = Object.assign(createDefaultState(), saved);
     return true;
   } catch (e) {
@@ -140,12 +151,19 @@ function getTimeOfDay() {
 function addLog(text, type) {
   type = type || 'info';
   G.log.unshift({ day: G.day, time: getTimeString(), text: text, type: type });
-  if (G.log.length > 80) G.log.length = 80;
+  if (G.log.length > 100) G.log.length = 100;
 }
 
 function getStageName() {
   var s = STAGES.find(function(st) { return st.id === G.stage; });
   return s ? s.name : G.stage;
+}
+
+function getStageIndex() {
+  for (var i = 0; i < STAGES.length; i++) {
+    if (STAGES[i].id === G.stage) return i;
+  }
+  return 0;
 }
 
 function canPostJob() {
@@ -159,6 +177,10 @@ function daysSinceLastPost() {
 function daysUntilCanPost() {
   var d = 7 - (G.day - G.lastJobPostDay);
   return d > 0 ? d : 0;
+}
+
+function canThrowParty() {
+  return (G.day - G.lastPartyDay) >= 7 && G.team.length > 0;
 }
 
 // --- Confirmation Modal System ---

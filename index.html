@@ -20,7 +20,45 @@
         <button id="btn-new-game" class="btn btn-primary">NEW GAME</button>
         <button id="btn-continue" class="btn btn-secondary" style="display:none;">CONTINUE</button>
       </div>
-      <p class="title-version">v2.1</p>
+      <p class="title-version">v3.0</p>
+    </div>
+    <div class="scanline-overlay"></div>
+  </div>
+
+  <!-- CHARACTER CREATION SCREEN -->
+  <div id="screen-create" class="screen">
+    <div class="create-container">
+      <h1 class="create-title">NEW VENTURE</h1>
+      <p class="create-subtitle">Set up your founder and company</p>
+
+      <div class="create-form">
+        <div class="create-field">
+          <label class="create-label" for="create-player-name">YOUR NAME</label>
+          <input type="text" id="create-player-name" class="create-input" placeholder="Founder" maxlength="20">
+        </div>
+        <div class="create-field">
+          <label class="create-label" for="create-company-name">COMPANY NAME</label>
+          <input type="text" id="create-company-name" class="create-input" placeholder="My Startup" maxlength="24">
+        </div>
+        <div class="create-field">
+          <label class="create-label" for="create-gender">GENDER</label>
+          <select id="create-gender" class="create-input">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <div class="create-stats">
+          <p class="create-hint">Starting skills (2/10 each &mdash; train in the Shop)</p>
+          <div class="create-stat-row"><span>TEC (Technical)</span><span>2/10 &mdash; Solo work speed</span></div>
+          <div class="create-stat-row"><span>COM (Communication)</span><span>2/10 &mdash; Fewer team conflicts</span></div>
+          <div class="create-stat-row"><span>REL (Reliability)</span><span>2/10 &mdash; Steady energy &amp; loyalty</span></div>
+        </div>
+      </div>
+
+      <div class="title-buttons" style="margin-top:2rem;">
+        <button id="btn-start-game" class="btn btn-primary">START</button>
+        <button id="btn-back-title" class="btn btn-secondary btn-small">BACK</button>
+      </div>
     </div>
     <div class="scanline-overlay"></div>
   </div>
@@ -36,6 +74,7 @@
           <span id="header-clock" class="header-clock">MON 09:00</span>
         </div>
         <div class="header-right">
+          <span id="header-company" class="header-company"></span>
           <span id="header-cash" class="header-cash">$500</span>
         </div>
       </div>
@@ -98,6 +137,10 @@
             </div>
           </div>
           <div class="status-item" style="margin-top:0.5rem;">
+            <span class="status-label">Your Skills</span>
+            <div id="status-player-skills" class="skill-bars"></div>
+          </div>
+          <div class="status-item" style="margin-top:0.5rem;">
             <span class="status-label">Active Perks</span>
             <span id="status-perks" class="status-value" style="font-size:0.7rem;">None</span>
           </div>
@@ -116,11 +159,12 @@
       <div id="tab-projects" class="tab-content">
         <div class="dashboard-section">
           <h2 class="section-title">PIPELINE</h2>
-          <p class="section-hint">Available leads — accept to start working</p>
+          <p class="section-hint">Available leads &mdash; accept to start working</p>
           <div id="project-pipeline"></div>
         </div>
         <div class="dashboard-section">
           <h2 class="section-title">ACTIVE PROJECTS</h2>
+          <p class="section-hint">Work on solo projects or assign team members here</p>
           <div id="project-active"></div>
         </div>
         <div class="dashboard-section">
@@ -134,10 +178,12 @@
         <div id="team-payroll-info" class="payroll-banner" style="display:none;"></div>
         <div class="dashboard-section">
           <h2 class="section-title">YOUR TEAM</h2>
+          <p class="section-hint">Click a person to expand details, work history, and avatar</p>
           <div id="team-roster"></div>
         </div>
         <div class="dashboard-section">
           <h2 class="section-title">CANDIDATES</h2>
+          <p class="section-hint">Interview to reveal skills. Candidates leave after 3-5 days!</p>
           <div id="team-candidates"></div>
         </div>
       </div>
@@ -150,12 +196,12 @@
         </div>
         <div class="dashboard-section">
           <h2 class="section-title">COMPANIES</h2>
-          <p class="section-hint">Scout competitors to view their teams and poach talent</p>
+          <p class="section-hint">Scout competitors to reveal teams. Scout multiple times for deeper intel.</p>
           <div id="competitor-details"></div>
         </div>
         <div class="dashboard-section">
           <h2 class="section-title">ACQUIRE STARTUPS</h2>
-          <p class="section-hint">Buy smaller competitors — starting at $50k for niche startups</p>
+          <p class="section-hint">Buy smaller competitors &mdash; starting at $50k</p>
           <div id="market-acquisitions"></div>
         </div>
         <div class="dashboard-section">
@@ -168,11 +214,18 @@
       <div id="tab-shop" class="tab-content">
         <div class="dashboard-section">
           <h2 class="section-title">UPGRADES</h2>
+          <p class="section-hint">Upgrades cost AP and money</p>
           <div id="shop-upgrades"></div>
         </div>
         <div class="dashboard-section">
           <h2 class="section-title">FOOD & ENERGY</h2>
+          <p class="section-hint">No AP cost &mdash; expensive food gives temporary buffs</p>
           <div id="shop-food"></div>
+        </div>
+        <div class="dashboard-section">
+          <h2 class="section-title">TRAINING</h2>
+          <p class="section-hint">Improve your personal skills (costs scale with level)</p>
+          <div id="shop-training"></div>
         </div>
       </div>
 
@@ -201,7 +254,7 @@
       </div>
     </div>
 
-    <!-- CONFIRMATION MODAL (small popup for action feedback) -->
+    <!-- CONFIRMATION MODAL -->
     <div id="confirmation-modal" class="modal confirmation-overlay" style="display:none;">
       <div class="confirmation-content">
         <span id="confirmation-icon" class="confirmation-icon">+</span>
@@ -228,6 +281,7 @@
             <span id="negotiation-asking" class="negotiation-value text-amber"></span>
           </div>
         </div>
+        <div id="negotiation-patience" class="patience-section"></div>
         <div class="negotiation-offer-section">
           <label class="negotiation-label" for="negotiation-offer">Your offer ($/wk):</label>
           <input type="number" id="negotiation-offer" class="negotiation-input" min="0" step="25">
@@ -244,6 +298,7 @@
     <div class="scanline-overlay"></div>
   </div>
 
+  <script src="js/avatars.js"></script>
   <script src="js/state.js"></script>
   <script src="js/projects.js"></script>
   <script src="js/team.js"></script>
