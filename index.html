@@ -89,6 +89,10 @@
               <span id="status-team" class="status-value">0</span>
             </div>
           </div>
+          <div class="status-item" style="margin-top:0.5rem;">
+            <span class="status-label">Active Perks</span>
+            <span id="status-perks" class="status-value" style="font-size:0.7rem;">None</span>
+          </div>
         </div>
         <div class="dashboard-section">
           <h2 class="section-title">ACTIONS</h2>
@@ -119,6 +123,7 @@
 
       <!-- TEAM TAB -->
       <div id="tab-team" class="tab-content">
+        <div id="team-payroll-info" class="payroll-banner" style="display:none;"></div>
         <div class="dashboard-section">
           <h2 class="section-title">YOUR TEAM</h2>
           <div id="team-roster"></div>
@@ -134,6 +139,15 @@
         <div class="dashboard-section">
           <h2 class="section-title">MARKET SHARE</h2>
           <div id="market-chart"></div>
+        </div>
+        <div class="dashboard-section">
+          <h2 class="section-title">ACQUIRE STARTUPS</h2>
+          <p class="section-hint">Buy smaller competitors to gain market share and expertise</p>
+          <div id="market-acquisitions"></div>
+        </div>
+        <div class="dashboard-section">
+          <h2 class="section-title">MARKET NEWS</h2>
+          <div id="market-news"></div>
         </div>
       </div>
 
@@ -178,8 +192,11 @@
   </div>
 
   <script src="js/state.js"></script>
-  <script src="js/engine.js"></script>
   <script src="js/projects.js"></script>
+  <script src="js/team.js"></script>
+  <script src="js/market.js"></script>
+  <script src="js/events.js"></script>
+  <script src="js/engine.js"></script>
   <script src="js/actions.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>

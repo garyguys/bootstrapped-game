@@ -12,10 +12,18 @@ var ENERGY_COSTS = {
   hire:          8,
   browse_shop:   5,
   order_food:    5,
+  acquire:       10,
 };
 
 function canAct() {
   return G.apCurrent > 0 && !G.gameOver;
+}
+
+// Post-action hook: check for events, energy failures, re-render
+function afterAction() {
+  checkEnergyProjectFailures();
+  checkForDayEvent();
+  UI.renderAll();
 }
 
 // --- Action: Work on a project ---
@@ -29,10 +37,8 @@ function actionWorkProject(projectId) {
   spendAP(1);
   spendEnergy(ENERGY_COSTS.work_project);
 
-  // Check for exhaustion mistake
   if (checkExhaustedMistake()) {
     addLog('Exhaustion caused a bug in the code... lost some progress.', 'bad');
-    // Find the project and remove some progress
     for (var i = 0; i < G.activeProjects.length; i++) {
       if (G.activeProjects[i].id === projectId) {
         G.activeProjects[i].progress = Math.max(0, G.activeProjects[i].progress - 10);
@@ -41,7 +47,7 @@ function actionWorkProject(projectId) {
     }
   }
 
-  UI.renderAll();
+  afterAction();
 }
 
 // --- Action: Accept a pipeline project ---
@@ -54,19 +60,19 @@ function actionAcceptProject(projectId) {
 
   spendAP(1);
   spendEnergy(ENERGY_COSTS.accept_project);
-  UI.renderAll();
+  afterAction();
 }
 
-// --- Action: Client call (extend a lead) ---
+// --- Action: Client call (extend ACTIVE project deadline) ---
 
 function actionClientCall(projectId) {
   if (!canAct()) return;
 
   var found = false;
-  for (var i = 0; i < G.pipeline.length; i++) {
-    if (G.pipeline[i].id === projectId) {
-      G.pipeline[i].expiresIn += 2;
-      addLog('Called ' + G.pipeline[i].client + ' — lead extended by 2 days.', 'good');
+  for (var i = 0; i < G.activeProjects.length; i++) {
+    if (G.activeProjects[i].id === projectId) {
+      G.activeProjects[i].daysToComplete += 2;
+      addLog('Called ' + G.activeProjects[i].client + ' — deadline extended by 2 days.', 'good');
       found = true;
       break;
     }
@@ -75,7 +81,7 @@ function actionClientCall(projectId) {
 
   spendAP(1);
   spendEnergy(ENERGY_COSTS.client_call);
-  UI.renderAll();
+  afterAction();
 }
 
 // --- Action: Post a job ---
@@ -86,12 +92,63 @@ function actionPostJob() {
     addLog('You already have a job posting active.', 'warn');
     return;
   }
+  if (!canPostJob()) {
+    addLog('Can\'t post again yet. ' + daysUntilCanPost() + ' days until next posting.', 'warn');
+    return;
+  }
 
   G.jobPosted = true;
+  G.lastJobPostDay = G.day;
   spendAP(1);
   spendEnergy(ENERGY_COSTS.post_job);
-  addLog('Job listing posted. Candidates will apply by tomorrow.', 'info');
+  addLog('Job listing posted. Candidates will apply by tomorrow. (Next posting available in 7 days.)', 'info');
+  afterAction();
+}
+
+// --- Action: Interview candidate ---
+
+function actionInterview(candidateId) {
+  if (!canAct()) return;
+
+  var success = interviewCandidate(candidateId);
+  if (!success) return;
+
+  spendAP(1);
+  spendEnergy(ENERGY_COSTS.interview);
+  afterAction();
+}
+
+// --- Action: Hire candidate ---
+
+function actionHire(candidateId) {
+  if (!canAct()) return;
+
+  var success = hireCandidate(candidateId);
+  if (!success) return;
+
+  spendAP(1);
+  spendEnergy(ENERGY_COSTS.hire);
+  afterAction();
+}
+
+// --- Action: Fire employee ---
+
+function actionFire(employeeId) {
+  fireEmployee(employeeId);
   UI.renderAll();
+}
+
+// --- Action: Acquire startup ---
+
+function actionAcquire(competitorId) {
+  if (!canAct()) return;
+
+  var success = acquireStartup(competitorId);
+  if (!success) return;
+
+  spendAP(1);
+  spendEnergy(ENERGY_COSTS.acquire);
+  afterAction();
 }
 
 // --- Action: Order Food (instant energy) ---
@@ -123,7 +180,7 @@ function actionOrderFood(foodId) {
   spendAP(1);
 
   addLog('Ordered ' + item.name + ' (-$' + item.cost + ', +' + item.energy + ' energy)', 'info');
-  UI.renderAll();
+  afterAction();
 }
 
 // --- Get available dashboard actions ---
@@ -163,25 +220,26 @@ function getDashboardActions() {
     });
   }
 
-  // Client calls for pipeline leads about to expire
-  for (var k = 0; k < G.pipeline.length; k++) {
-    if (G.pipeline[k].expiresIn <= 2) {
-      var cl = G.pipeline[k];
+  // Client calls for ACTIVE projects approaching deadline
+  for (var k = 0; k < G.activeProjects.length; k++) {
+    var ap = G.activeProjects[k];
+    var daysLeft = ap.daysToComplete - ap.daysActive;
+    if (daysLeft <= 2 && ap.progress < 100) {
       actions.push({
-        id: 'call_' + cl.id,
-        name: 'Client Call: ' + cl.client,
-        desc: 'Extend lead by 2 days',
+        id: 'call_' + ap.id,
+        name: 'Client Call: ' + ap.client,
+        desc: 'Extend deadline by 2 days (' + ap.name + ')',
         cost: '1 AP',
         enabled: canAct(),
         action: (function(pid) {
           return function() { actionClientCall(pid); };
-        })(cl.id)
+        })(ap.id)
       });
     }
   }
 
-  // Post job
-  if (!G.jobPosted) {
+  // Post job (with cooldown)
+  if (!G.jobPosted && canPostJob()) {
     actions.push({
       id: 'post_job',
       name: 'Post Job Listing',
@@ -190,9 +248,18 @@ function getDashboardActions() {
       enabled: canAct(),
       action: actionPostJob,
     });
+  } else if (!G.jobPosted && !canPostJob()) {
+    actions.push({
+      id: 'post_job_cd',
+      name: 'Post Job Listing',
+      desc: 'Cooldown: ' + daysUntilCanPost() + ' day(s) remaining',
+      cost: '1 AP',
+      enabled: false,
+      action: function() {},
+    });
   }
 
-  // Food ordering
+  // Food ordering (just coffee on dashboard, full list in shop)
   actions.push({
     id: 'food_coffee',
     name: 'Order Coffee',

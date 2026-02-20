@@ -797,6 +797,127 @@ body.time-dusk      { --bg-current: var(--bg-dusk); }
 }
 
 /* ============================================
+   Skill Bars (Team/Candidates)
+   ============================================ */
+.skill-bars {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.4rem 0;
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.skill-label {
+  font-size: 0.6rem;
+  color: var(--grey-light);
+  letter-spacing: 0.05em;
+  width: 2rem;
+}
+
+.skill-dots {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+}
+
+/* ============================================
+   Candidate Role Tag
+   ============================================ */
+.candidate-role {
+  font-size: 0.7rem;
+  color: var(--cyan-dim);
+  white-space: nowrap;
+}
+
+.candidate-perk {
+  font-size: 0.7rem;
+  color: var(--green-dim);
+  background: rgba(0, 255, 65, 0.05);
+  border-left: 2px solid var(--green-dark);
+  padding: 0.3rem 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.candidate-flaw {
+  font-size: 0.7rem;
+  color: var(--red-dim);
+  background: rgba(255, 51, 51, 0.05);
+  border-left: 2px solid var(--red-dim);
+  padding: 0.3rem 0.5rem;
+  margin-top: 0.3rem;
+}
+
+/* ============================================
+   Payroll Banner
+   ============================================ */
+.payroll-banner {
+  background: rgba(255, 170, 0, 0.08);
+  border: 1px solid var(--amber-dim);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  color: var(--amber);
+}
+
+.payroll-label {
+  color: var(--grey-light);
+  margin-right: 0.3rem;
+}
+
+/* ============================================
+   Market Bars
+   ============================================ */
+.market-bar-row {
+  margin-bottom: 0.75rem;
+}
+
+.market-bar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.2rem;
+}
+
+.market-bar-name {
+  font-size: 0.8rem;
+  color: var(--green);
+  font-weight: bold;
+}
+
+.market-bar-focus {
+  font-size: 0.65rem;
+  color: var(--grey-light);
+  margin-left: 0.5rem;
+  flex: 1;
+  text-align: left;
+  margin-left: 0.75rem;
+}
+
+.market-bar-pct {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  color: var(--white);
+}
+
+.market-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--grey-dark);
+  border-radius: 2px;
+}
+
+.market-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+/* ============================================
    Utility
    ============================================ */
 .hidden { display: none !important; }

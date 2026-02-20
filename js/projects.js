@@ -8,11 +8,15 @@ var PROJECT_TEMPLATES = [
   { name: 'Brand Identity',   payMin: 1200,  payMax: 1800,  complexity: 1.5, daysMin: 4, daysMax: 5, repGain: 5  },
   { name: 'API Integration',  payMin: 1500,  payMax: 2200,  complexity: 2,   daysMin: 5, daysMax: 6, repGain: 6  },
   { name: 'E-comm Store',     payMin: 2000,  payMax: 3000,  complexity: 2,   daysMin: 6, daysMax: 8, repGain: 8  },
+  { name: 'Web App MVP',      payMin: 3500,  payMax: 5000,  complexity: 3,   daysMin: 8, daysMax: 12, repGain: 12 },
+  { name: 'Mobile App',       payMin: 5000,  payMax: 8000,  complexity: 4,   daysMin: 12, daysMax: 18, repGain: 16 },
+  { name: 'SaaS Platform',    payMin: 8000,  payMax: 12000, complexity: 5,   daysMin: 18, daysMax: 28, repGain: 22 },
 ];
 
 // Client name parts for random generation
-var CLIENT_FIRST = ['Acme', 'Bright', 'Core', 'Nova', 'Edge', 'Peak', 'Flux', 'Zen', 'Pixel', 'Bolt', 'Nexus', 'Atlas'];
-var CLIENT_LAST = ['Corp', 'Labs', 'Media', 'Tech', 'Studio', 'Digital', 'Co', 'Works', 'Group', 'HQ'];
+var CLIENT_FIRST = ['Acme', 'Bright', 'Core', 'Nova', 'Edge', 'Peak', 'Flux', 'Zen', 'Pixel', 'Bolt', 'Nexus', 'Atlas',
+                    'Lunar', 'Tide', 'Forge', 'Mint', 'Slate', 'Prism', 'Wren', 'Hive'];
+var CLIENT_LAST = ['Corp', 'Labs', 'Media', 'Tech', 'Studio', 'Digital', 'Co', 'Works', 'Group', 'HQ', 'AI', 'Ventures'];
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -27,19 +31,19 @@ function generateClientName() {
 }
 
 function generateProject() {
-  // Filter templates by what the player can handle at current stage
+  // Filter templates by stage
+  var maxComplexity = 1.5;
+  if (G.stage === 'home_office') maxComplexity = 2;
+  else if (G.stage === 'micro') maxComplexity = 3;
+  else if (G.stage === 'boutique') maxComplexity = 4;
+  else if (G.stage === 'scaleup' || G.stage === 'leader') maxComplexity = 5;
+
   var available = PROJECT_TEMPLATES.filter(function(t) {
-    // Early game: only complexity <= 1.5 in pipeline
-    if (G.stage === 'freelancer' || G.stage === 'home_office') {
-      return t.complexity <= 1.5;
-    }
-    return true;
+    return t.complexity <= maxComplexity;
   });
 
   var template = randomChoice(available);
   var payout = randomInt(template.payMin, template.payMax);
-
-  // Round payout to nearest 50
   payout = Math.round(payout / 50) * 50;
 
   return {
@@ -50,10 +54,10 @@ function generateProject() {
     complexity: template.complexity,
     daysToComplete: randomInt(template.daysMin, template.daysMax),
     repGain: template.repGain,
-    progress: 0,          // 0-100
+    progress: 0,
     daysActive: 0,
-    expiresIn: 3,         // Pipeline leads expire in 3 days
-    assignedTeam: [],     // Employee IDs assigned
+    expiresIn: 3,
+    assignedTeam: [],
     founderWorking: false,
   };
 }
@@ -75,7 +79,7 @@ function acceptProject(projectId) {
   if (idx === -1) return false;
 
   var project = G.pipeline.splice(idx, 1)[0];
-  project.expiresIn = -1; // No longer expiring
+  project.expiresIn = -1;
   G.activeProjects.push(project);
   addLog('Accepted project: ' + project.name + ' for ' + project.client, 'good');
   return true;
@@ -91,16 +95,12 @@ function workOnProject(projectId) {
   }
   if (!project) return false;
 
-  // Founder can only work on complexity <= 1.5
   if (project.complexity > 1.5) {
     addLog('This project is too complex to work on solo.', 'bad');
     return false;
   }
 
-  // Advance progress ~25% per founder action
   var advance = 25;
-
-  // Second monitor upgrade: 20% faster
   if (G.upgrades.indexOf('second_monitor') !== -1) {
     advance = 30;
   }
@@ -113,13 +113,28 @@ function workOnProject(projectId) {
 }
 
 function advanceProjects() {
-  // Team members auto-advance assigned projects each day
   for (var i = 0; i < G.activeProjects.length; i++) {
     var p = G.activeProjects[i];
     p.daysActive += 1;
 
-    // Team auto-work would go here when team system is built
-    // For now, projects only advance via founder actions
+    // Team auto-work: sum contributions from team members
+    var teamBonus = getTeamProjectBonus(p);
+    if (teamBonus > 0) {
+      p.progress = Math.min(100, p.progress + teamBonus);
+    }
+
+    // Faster internet upgrade
+    if (G.upgrades.indexOf('faster_internet') !== -1) {
+      p.progress = Math.min(100, p.progress + 2);
+    }
+
+    // Check overdue
+    if (p.daysActive > p.daysToComplete && p.progress < 100) {
+      // Overdue penalty: rep loss
+      if (p.daysActive === p.daysToComplete + 1) {
+        addLog(p.name + ' for ' + p.client + ' is OVERDUE! Reputation at risk.', 'bad');
+      }
+    }
   }
 }
 
@@ -140,12 +155,28 @@ function checkProjectDeliveries() {
 
   for (var j = 0; j < delivered.length; j++) {
     var d = delivered[j];
-    G.cash += d.payout;
-    G.reputation += d.repGain;
-    G.totalRevenue += d.payout;
+    var payout = d.payout;
+
+    // Referral partner perk: -15% on revenue
+    var refPerk = G.perks.find(function(p) { return p.id === 'referral_partner'; });
+    if (refPerk) {
+      payout = Math.round(payout * 0.85);
+    }
+
+    var repGain = d.repGain;
+
+    // Perfectionist perk on team: +2 rep
+    var hasPerfectionist = G.team.some(function(e) { return e.perk && e.perk.id === 'perfectionist'; });
+    if (hasPerfectionist) {
+      repGain += 2;
+    }
+
+    G.cash += payout;
+    G.reputation += repGain;
+    G.totalRevenue += payout;
     G.completedProjects.push(d);
-    addLog('Delivered: ' + d.name + ' for ' + d.client + ' — +$' + d.payout + ', +' + d.repGain + ' rep', 'good');
-    G.overnightEvents.push('Delivered ' + d.name + ' to ' + d.client + ' (+$' + d.payout + ')');
+    addLog('Delivered: ' + d.name + ' for ' + d.client + ' — +$' + payout + ', +' + repGain + ' rep', 'good');
+    G.overnightEvents.push('Delivered ' + d.name + ' to ' + d.client + ' (+$' + payout + ')');
   }
 }
 

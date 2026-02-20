@@ -24,6 +24,9 @@
     // Generate initial pipeline leads
     generatePipelineLeads();
 
+    // Initialize market with competitors
+    initMarket();
+
     // Opening log
     addLog('Day 1 (MON) — You quit your job. $500 in the bank. Let\'s build something.', 'info');
 

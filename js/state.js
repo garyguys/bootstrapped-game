@@ -34,21 +34,28 @@ function createDefaultState() {
     energy: 100,
     energyMax: 100,
     pushedLastNight: false,
-    pushedThroughTonight: false,  // True after choosing to push through
+    pushedThroughTonight: false,
 
     // Stage
     stage: 'freelancer',
 
     // Projects
-    pipeline: [],       // Available leads
-    activeProjects: [],  // In-progress projects
-    completedProjects: [], // Finished projects
+    pipeline: [],
+    activeProjects: [],
+    completedProjects: [],
     nextProjectId: 1,
 
     // Team
     team: [],
     candidates: [],
     jobPosted: false,
+    lastJobPostDay: -99,  // Day of last job posting (cooldown: once per 7 days)
+    nextPayrollDay: 14,   // First payroll on day 14
+
+    // Competitors / Market
+    competitors: [],
+    acquiredStartups: [],
+    marketEvents: [],
 
     // Debt
     debt: 0,
@@ -56,11 +63,17 @@ function createDefaultState() {
     // Upgrades purchased
     upgrades: [],
 
+    // Roguelike perks (temporary and permanent)
+    perks: [],
+
     // Log
     log: [],
 
     // Overnight events
     overnightEvents: [],
+
+    // Event flags
+    dayEventFired: false,
 
     // Flags
     gameOver: false,
@@ -127,10 +140,23 @@ function getTimeOfDay() {
 function addLog(text, type) {
   type = type || 'info';
   G.log.unshift({ time: getTimeString(), text: text, type: type });
-  if (G.log.length > 50) G.log.length = 50;
+  if (G.log.length > 80) G.log.length = 80;
 }
 
 function getStageName() {
   const s = STAGES.find(function(st) { return st.id === G.stage; });
   return s ? s.name : G.stage;
+}
+
+function canPostJob() {
+  return (G.day - G.lastJobPostDay) >= 7;
+}
+
+function daysSinceLastPost() {
+  return G.day - G.lastJobPostDay;
+}
+
+function daysUntilCanPost() {
+  var d = 7 - (G.day - G.lastJobPostDay);
+  return d > 0 ? d : 0;
 }
