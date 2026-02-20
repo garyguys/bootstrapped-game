@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>BOOTSTRAPPED</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- TITLE SCREEN -->
+  <div id="screen-title" class="screen active">
+    <div class="title-container">
+      <h1 class="title-logo">BOOTSTRAPPED</h1>
+      <p class="title-tagline">$500. A laptop. A dream.</p>
+      <div class="title-buttons">
+        <button id="btn-new-game" class="btn btn-primary">NEW GAME</button>
+        <button id="btn-continue" class="btn btn-secondary" style="display:none;">CONTINUE</button>
+      </div>
+      <p class="title-version">v2.0</p>
+    </div>
+    <div class="scanline-overlay"></div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="screen-game" class="screen">
+
+    <!-- HEADER -->
+    <header id="game-header">
+      <div class="header-row">
+        <div class="header-left">
+          <span id="header-day" class="header-day">DAY 1</span>
+          <span id="header-clock" class="header-clock">MON 09:00</span>
+        </div>
+        <div class="header-right">
+          <span id="header-cash" class="header-cash">$500</span>
+        </div>
+      </div>
+      <div class="header-row header-row-stats">
+        <div class="header-left">
+          <span class="stat-label">AP</span>
+          <span id="header-ap" class="header-ap"></span>
+        </div>
+        <div class="header-right">
+          <span class="stat-label">NRG</span>
+          <div class="energy-bar-container">
+            <div id="header-energy-bar" class="energy-bar"></div>
+            <span id="header-energy-text" class="energy-text">100</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- TABS -->
+    <nav id="game-tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="projects">Projects</button>
+      <button class="tab" data-tab="team">Team</button>
+      <button class="tab" data-tab="market">Market</button>
+      <button class="tab" data-tab="shop">Shop</button>
+    </nav>
+
+    <!-- MAIN CONTENT AREA -->
+    <main id="game-main">
+
+      <!-- DASHBOARD TAB -->
+      <div id="tab-dashboard" class="tab-content active">
+        <div id="overnight-events" class="event-panel" style="display:none;"></div>
+        <div class="dashboard-section">
+          <h2 class="section-title">STATUS</h2>
+          <div id="dashboard-status" class="status-grid">
+            <div class="status-item">
+              <span class="status-label">Stage</span>
+              <span id="status-stage" class="status-value">Freelancer</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Reputation</span>
+              <span id="status-rep" class="status-value">0</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Revenue</span>
+              <span id="status-revenue" class="status-value">$0</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Team</span>
+              <span id="status-team" class="status-value">0</span>
+            </div>
+          </div>
+        </div>
+        <div class="dashboard-section">
+          <h2 class="section-title">ACTIONS</h2>
+          <div id="dashboard-actions" class="actions-list"></div>
+        </div>
+        <div id="dashboard-log" class="log-panel">
+          <h2 class="section-title">LOG</h2>
+          <div id="log-entries"></div>
+        </div>
+      </div>
+
+      <!-- PROJECTS TAB -->
+      <div id="tab-projects" class="tab-content">
+        <div class="dashboard-section">
+          <h2 class="section-title">PIPELINE</h2>
+          <p class="section-hint">Available leads — accept to start working</p>
+          <div id="project-pipeline"></div>
+        </div>
+        <div class="dashboard-section">
+          <h2 class="section-title">ACTIVE PROJECTS</h2>
+          <div id="project-active"></div>
+        </div>
+        <div class="dashboard-section">
+          <h2 class="section-title">COMPLETED</h2>
+          <div id="project-completed"></div>
+        </div>
+      </div>
+
+      <!-- TEAM TAB -->
+      <div id="tab-team" class="tab-content">
+        <div class="dashboard-section">
+          <h2 class="section-title">YOUR TEAM</h2>
+          <div id="team-roster"></div>
+        </div>
+        <div class="dashboard-section">
+          <h2 class="section-title">CANDIDATES</h2>
+          <div id="team-candidates"></div>
+        </div>
+      </div>
+
+      <!-- MARKET TAB -->
+      <div id="tab-market" class="tab-content">
+        <div class="dashboard-section">
+          <h2 class="section-title">MARKET SHARE</h2>
+          <div id="market-chart"></div>
+        </div>
+      </div>
+
+      <!-- SHOP TAB -->
+      <div id="tab-shop" class="tab-content">
+        <div class="dashboard-section">
+          <h2 class="section-title">UPGRADES</h2>
+          <div id="shop-upgrades"></div>
+        </div>
+        <div class="dashboard-section">
+          <h2 class="section-title">FOOD & ENERGY</h2>
+          <div id="shop-food"></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer id="game-footer">
+      <button id="btn-end-day" class="btn btn-end-day">SLEEP & END DAY</button>
+    </footer>
+
+    <!-- DAY TRANSITION OVERLAY -->
+    <div id="day-transition" class="day-transition">
+      <div class="transition-scanlines"></div>
+      <div class="transition-content">
+        <p id="transition-text" class="transition-text">Sleeping...</p>
+        <p id="transition-day" class="transition-day">DAY 2</p>
+      </div>
+    </div>
+
+    <!-- EVENT MODAL -->
+    <div id="event-modal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <h3 id="event-modal-title"></h3>
+        <p id="event-modal-desc"></p>
+        <div id="event-modal-choices"></div>
+      </div>
+    </div>
+
+    <div class="scanline-overlay"></div>
+  </div>
+
+  <script src="js/state.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/projects.js"></script>
+  <script src="js/actions.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
