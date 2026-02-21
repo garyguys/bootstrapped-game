@@ -43,28 +43,39 @@ function getPushEnergyRecovery() {
   return Math.max(15, base - projectPenalty);
 }
 
-// --- Energy Exhaustion: Project Failures ---
+// --- Energy Exhaustion: Project Failures + Team Conflict ---
 
 function checkEnergyProjectFailures() {
   if (G.energy > 0) return;
-  if (G.activeProjects.length === 0) return;
 
-  var failCount = Math.random() < 0.4 ? 2 : 1;
-  failCount = Math.min(failCount, G.activeProjects.length);
+  // Energy = 0 blocks all future actions (canAct checks energy)
+  // Also trigger negative effects
+  addLog('ENERGY DEPLETED — No more actions possible today!', 'bad');
 
-  var shuffled = G.activeProjects.slice().sort(function() { return Math.random() - 0.5; });
-
-  for (var i = 0; i < failCount; i++) {
-    var p = shuffled[i];
-    var loss = randomInt(15, 30);
-    p.progress = Math.max(0, p.progress - loss);
-    addLog('Exhaustion caused a disaster on ' + p.name + '! -' + loss + '% progress.', 'bad');
-
-    if (p.daysActive >= p.daysToComplete && p.progress < 30) {
-      G.activeProjects = G.activeProjects.filter(function(x) { return x.id !== p.id; });
-      G.reputation = Math.max(0, G.reputation - p.repGain);
-      addLog(p.client + ' cancelled the project due to repeated failures! -' + p.repGain + ' rep.', 'bad');
+  // Project progress loss
+  if (G.activeProjects.length > 0) {
+    var failCount = Math.random() < 0.4 ? 2 : 1;
+    failCount = Math.min(failCount, G.activeProjects.length);
+    var shuffled = G.activeProjects.slice().sort(function() { return Math.random() - 0.5; });
+    for (var i = 0; i < failCount; i++) {
+      var p = shuffled[i];
+      var loss = randomInt(10, 20);
+      p.progress = Math.max(0, p.progress - loss);
+      addLog('Exhaustion set back ' + p.name + ' by -' + loss + '% progress.', 'bad');
+      if (p.daysActive >= p.daysToComplete && p.progress < 30) {
+        G.activeProjects = G.activeProjects.filter(function(x) { return x.id !== p.id; });
+        G.reputation = Math.max(0, G.reputation - p.repGain);
+        addLog(p.client + ' cancelled the project due to repeated failures! -' + p.repGain + ' rep.', 'bad');
+      }
     }
+  }
+
+  // Increased team conflict chance (60% when energy = 0)
+  if (G.team.length >= 2 && Math.random() < 0.6) {
+    for (var j = 0; j < G.team.length; j++) {
+      G.team[j].loyalty = Math.max(0, G.team[j].loyalty - 8);
+    }
+    addLog('Your burnout is spreading to the team. Loyalty -8 for everyone.', 'bad');
   }
 }
 
@@ -83,6 +94,7 @@ function endDay(pushThrough) {
   tickPerks();
   rollOvernightEvents();
   checkPayroll();
+  tickProducts();
 
   if (pushThrough) {
     G.pushedLastNight = true;
@@ -139,7 +151,7 @@ function startNewDay() {
 
   // Generate pipeline if needed
   if (G.pipeline.length < 2) {
-    generatePipelineLeads();
+    generatePipelineLeads(false);
   }
 
   // Referral partner perk: extra lead
@@ -190,6 +202,56 @@ function startNewDay() {
 
   saveGame();
   UI.renderAll();
+
+  // Show project delivery popups
+  if (G.deliveryQueue && G.deliveryQueue.length > 0) {
+    showNextDeliveryPopup();
+  }
+}
+
+function showNextDeliveryPopup() {
+  if (!G.deliveryQueue || G.deliveryQueue.length === 0) return;
+  var delivery = G.deliveryQueue.shift();
+
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+
+  var happinessIcon = { Delighted: '★', Satisfied: '✓', Neutral: '~', Disappointed: '✗' };
+  var happinessColor = { Delighted: 'var(--green)', Satisfied: 'var(--cyan)', Neutral: 'var(--amber)', Disappointed: 'var(--red)' };
+  var icon = happinessIcon[delivery.happiness] || '?';
+  var color = happinessColor[delivery.happiness] || 'var(--grey-light)';
+
+  title.textContent = 'PROJECT DELIVERED';
+  var workerText = delivery.workers && delivery.workers.length > 0
+    ? delivery.workers.join(', ')
+    : 'Unassigned';
+  var outcomeHtml = delivery.outcomeEvent
+    ? '<br><br><span style="color:var(--amber)">Outcome: ' + escHtml(delivery.outcomeEvent) + '</span>'
+    : '';
+
+  desc.innerHTML =
+    '<strong>' + escHtml(delivery.name) + '</strong> delivered to <strong>' + escHtml(delivery.client) + '</strong>' +
+    '<br><br>' +
+    'Client Happiness: <span style="color:' + color + '">' + icon + ' ' + escHtml(delivery.happiness) + '</span>' +
+    '<br>Revenue: <span style="color:var(--green)">+$' + delivery.payout.toLocaleString() + '</span>' +
+    '<br>Reputation: <span style="color:var(--cyan)">+' + delivery.repGain + ' rep</span>' +
+    '<br>Worked by: ' + escHtml(workerText) +
+    outcomeHtml;
+
+  choices.innerHTML = '';
+  var btnOk = document.createElement('button');
+  btnOk.className = 'btn btn-primary btn-small';
+  btnOk.textContent = G.deliveryQueue.length > 0 ? 'NEXT DELIVERY' : 'GREAT!';
+  btnOk.onclick = function() {
+    modal.style.display = 'none';
+    if (G.deliveryQueue && G.deliveryQueue.length > 0) {
+      showNextDeliveryPopup();
+    }
+  };
+  choices.appendChild(btnOk);
+  modal.style.display = 'flex';
 }
 
 function getBaseAPMax() {
@@ -236,11 +298,31 @@ function checkPayroll() {
     var shortfall = amount - G.cash;
     G.cash = 0;
     G.debt += shortfall;
-    addLog('Couldn\'t cover payroll! $' + shortfall + ' added to debt.', 'bad');
-    G.overnightEvents.push('MISSED PAYROLL! Team morale is plummeting.');
+    addLog('MISSED PAYROLL! Couldn\'t cover $' + amount.toLocaleString() + '. Debt: $' + G.debt.toLocaleString() + '.', 'bad');
+    G.overnightEvents.push('MISSED PAYROLL! Team members leaving. Reputation hit.');
 
+    // Reputation loss
+    var repLoss = Math.min(15, Math.ceil(G.team.length * 1.5));
+    G.reputation = Math.max(0, G.reputation - repLoss);
+    addLog('Company reputation tanked. -' + repLoss + ' rep.', 'bad');
+
+    // Immediate walkouts: each team member has 60% chance to leave
+    var walkers = [];
     for (var i = 0; i < G.team.length; i++) {
-      G.team[i].loyalty = Math.max(0, G.team[i].loyalty - 30);
+      G.team[i].loyalty = Math.max(0, G.team[i].loyalty - 40);
+      if (Math.random() < 0.6) walkers.push(G.team[i]);
+    }
+    for (var j = 0; j < walkers.length; j++) {
+      var q = walkers[j];
+      G.team = G.team.filter(function(e) { return e.id !== q.id; });
+      // Unassign from projects
+      for (var p = 0; p < G.activeProjects.length; p++) {
+        if (G.activeProjects[p].assignedTeam) {
+          G.activeProjects[p].assignedTeam = G.activeProjects[p].assignedTeam.filter(function(id) { return id !== q.id; });
+        }
+      }
+      addLog(q.name + ' walked out after missed payroll!', 'bad');
+      G.overnightEvents.push(q.name + ' quit — unpaid salary.');
     }
   }
 }

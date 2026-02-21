@@ -76,11 +76,38 @@ function generateProject() {
   };
 }
 
-function generatePipelineLeads() {
+function generatePipelineLeads(guaranteeStartable) {
   var count = randomInt(2, 3);
   for (var i = 0; i < count; i++) {
     if (G.pipeline.length < 5) {
       G.pipeline.push(generateProject());
+    }
+  }
+  // On day 1 or when requested, ensure at least one solo-able, no-team-required project
+  if (guaranteeStartable) {
+    var hasStartable = G.pipeline.some(function(p) {
+      return p.complexity <= 1.5 && p.minTeam === 0 && !p.requiredRole;
+    });
+    if (!hasStartable && G.pipeline.length < 5) {
+      var startable = {
+        id: G.nextProjectId++,
+        name: 'Landing Page',
+        client: generateClientName(),
+        payout: randomInt(600, 900),
+        complexity: 1,
+        daysToComplete: randomInt(3, 4),
+        repGain: 3,
+        progress: 0,
+        daysActive: 0,
+        expiresIn: 3,
+        assignedTeam: [],
+        founderWorking: false,
+        requiredRole: null,
+        minTeam: 0,
+        deadlineExtensions: 0,
+      };
+      startable.payout = Math.round(startable.payout / 50) * 50;
+      G.pipeline.unshift(startable); // Put it first
     }
   }
 }
@@ -222,21 +249,280 @@ function checkProjectDeliveries() {
     var hasPerfectionist = G.team.some(function(e) { return e.perk && e.perk.id === 'perfectionist'; });
     if (hasPerfectionist) repGain += 2;
 
+    // Determine client happiness based on extensions
+    var extensions = d.deadlineExtensions || 0;
+    var happiness, happinessBonus = 0;
+    if (extensions === 0) {
+      happiness = 'Delighted';
+      happinessBonus = 2;
+      repGain += happinessBonus;
+    } else if (extensions === 1) {
+      happiness = 'Satisfied';
+    } else if (extensions === 2) {
+      happiness = 'Neutral';
+    } else {
+      happiness = 'Disappointed';
+      repGain = Math.max(0, repGain - 3);
+    }
+
     G.cash += payout;
     G.reputation += repGain;
     G.totalRevenue += payout;
     G.completedProjects.push(d);
 
-    // Unassign team members from this project
+    // Get names of workers for this project
+    var workerNames = [];
     for (var k = 0; k < G.team.length; k++) {
-      if (G.team[k].assignedProjectId === d.id) {
-        G.team[k].assignedProjectId = null;
+      var emp = G.team[k];
+      if (d.assignedTeam && d.assignedTeam.indexOf(emp.id) !== -1) {
+        workerNames.push(emp.name);
+        // Add to work history
+        emp.workHistory = emp.workHistory || [];
+        emp.workHistory.push({ company: d.client + ' (Project)', role: emp.role.id, years: 0 });
+      }
+      if (emp.assignedProjectId === d.id) {
+        emp.assignedProjectId = null;
       }
     }
+    if (d.founderWorking) workerNames.unshift(G.player ? G.player.name : 'You');
+
+    // Random outcome event
+    var outcomeEvent = null;
+    var roll = Math.random();
+    if (happiness === 'Delighted' && roll < 0.4) {
+      var referralBonus = randomInt(1, 3) * 100;
+      G.cash += referralBonus;
+      outcomeEvent = d.client + ' referred a new contact! +$' + referralBonus + ' bonus.';
+    } else if (happiness === 'Disappointed' && roll < 0.5) {
+      G.reputation = Math.max(0, G.reputation - 2);
+      outcomeEvent = d.client + ' left a negative review. -2 rep.';
+    } else if (roll < 0.2) {
+      outcomeEvent = d.client + ' asked for a follow-up project!';
+      if (G.pipeline.length < 5) G.pipeline.push(generateProject());
+    }
+
+    // Queue the delivery popup
+    G.deliveryQueue.push({
+      name: d.name,
+      client: d.client,
+      payout: payout,
+      repGain: repGain,
+      happiness: happiness,
+      workers: workerNames,
+      outcomeEvent: outcomeEvent,
+    });
 
     addLog('Delivered: ' + d.name + ' for ' + d.client + ' — +$' + payout + ', +' + repGain + ' rep', 'good');
     G.overnightEvents.push('Delivered ' + d.name + ' to ' + d.client + ' (+$' + payout + ')');
   }
+}
+
+// ============================================================
+//   PLAYER PRODUCT DEVELOPMENT SYSTEM
+// ============================================================
+
+var OWN_PRODUCT_TYPES = [
+  { id: 'saas_tool',     name: 'SaaS Tool',       desc: 'Subscription software for businesses' },
+  { id: 'mobile_app',   name: 'Mobile App',        desc: 'Consumer mobile application' },
+  { id: 'web_platform', name: 'Web Platform',      desc: 'Online platform or marketplace' },
+  { id: 'b2b_software', name: 'B2B Software',      desc: 'Business operations software' },
+  { id: 'dev_tool',     name: 'Developer Tool',    desc: 'Tools and libraries for developers' },
+  { id: 'ai_product',   name: 'AI Product',        desc: 'AI-powered product or service' },
+];
+
+var OWN_PRODUCT_SCOPES = [
+  { id: 'small',      name: 'Small',      investment: 5000,   devDaysMin: 15, devDaysMax: 25,  revenueMin: 50,   revenueMax: 200  },
+  { id: 'medium',     name: 'Medium',     investment: 20000,  devDaysMin: 30, devDaysMax: 60,  revenueMin: 200,  revenueMax: 800  },
+  { id: 'large',      name: 'Large',      investment: 75000,  devDaysMin: 60, devDaysMax: 120, revenueMin: 800,  revenueMax: 3000 },
+  { id: 'enterprise', name: 'Enterprise', investment: 200000, devDaysMin: 90, devDaysMax: 180, revenueMin: 2000, revenueMax: 10000 },
+];
+
+function createOwnProduct(typeId, scopeId, productName) {
+  var type = OWN_PRODUCT_TYPES.find(function(t) { return t.id === typeId; });
+  var scope = OWN_PRODUCT_SCOPES.find(function(s) { return s.id === scopeId; });
+  if (!type || !scope) return null;
+  if (G.cash < scope.investment) {
+    addLog('Not enough cash to develop a ' + scope.name + ' product. Need $' + scope.investment.toLocaleString() + '.', 'bad');
+    return null;
+  }
+
+  G.cash -= scope.investment;
+  var devDays = randomInt(scope.devDaysMin, scope.devDaysMax);
+  var maxRevenue = randomInt(scope.revenueMin, scope.revenueMax);
+
+  var product = {
+    id: G.nextProductId++,
+    name: productName || type.name + ' v1.0',
+    type: typeId,
+    typeName: type.name,
+    scope: scopeId,
+    scopeName: scope.name,
+    investment: scope.investment,
+    devDaysNeeded: devDays,
+    progress: 0,      // 0-100 development progress
+    quality: 0,       // 0-100 quality once live
+    maxRevenue: maxRevenue,
+    status: 'developing', // 'developing' | 'live' | 'dead'
+    assignedTeam: [],
+    daysLive: 0,
+    totalRevenue: 0,
+    marketInterest: 60, // 0-100
+  };
+
+  G.ownedProducts.push(product);
+  addLog('Started developing "' + product.name + '"! Invested $' + scope.investment.toLocaleString() + '.', 'good');
+  return product;
+}
+
+function workOnOwnProduct(productId) {
+  var product = null;
+  for (var i = 0; i < G.ownedProducts.length; i++) {
+    if (G.ownedProducts[i].id === productId) { product = G.ownedProducts[i]; break; }
+  }
+  if (!product || product.status !== 'developing') return false;
+
+  var playerTech = G.player ? G.player.technical : 2;
+  var advance = 10 + (playerTech * 2); // 12%-30% per action
+  if (G.upgrades.indexOf('second_monitor') !== -1) advance = Math.round(advance * 1.2);
+  if (G.energy < 25) advance = Math.round(advance * 0.75);
+
+  product.progress = Math.min(100, product.progress + advance);
+  addLog('Worked on "' + product.name + '" — ' + Math.round(product.progress) + '% complete.', 'good');
+
+  if (product.progress >= 100) {
+    product.status = 'live';
+    product.quality = 80 + randomInt(0, 20);
+    addLog('"' + product.name + '" launched! It\'s live and generating revenue.', 'good');
+    G.reputation += 5;
+    G.overnightEvents.push('"' + product.name + '" is live on the market!');
+  }
+  return true;
+}
+
+function updateOwnProduct(productId) {
+  // Spend money to restore quality
+  var product = null;
+  for (var i = 0; i < G.ownedProducts.length; i++) {
+    if (G.ownedProducts[i].id === productId) { product = G.ownedProducts[i]; break; }
+  }
+  if (!product || product.status !== 'live') return false;
+
+  var updateCost = Math.round(product.investment * 0.2);
+  if (G.cash < updateCost) {
+    addLog('Need $' + updateCost.toLocaleString() + ' to update "' + product.name + '".', 'bad');
+    return false;
+  }
+  G.cash -= updateCost;
+  product.quality = Math.min(100, product.quality + 40);
+  product.marketInterest = Math.min(100, product.marketInterest + 15);
+  addLog('Updated "' + product.name + '"! Quality restored. -$' + updateCost.toLocaleString() + '.', 'good');
+  return true;
+}
+
+function tickProducts() {
+  if (!G.ownedProducts || G.ownedProducts.length === 0) return;
+
+  for (var i = 0; i < G.ownedProducts.length; i++) {
+    var p = G.ownedProducts[i];
+    if (p.status === 'dead') continue;
+
+    if (p.status === 'developing') {
+      // Team auto-advances development
+      if (p.assignedTeam && p.assignedTeam.length > 0) {
+        var workers = G.team.filter(function(emp) {
+          return p.assignedTeam.indexOf(emp.id) !== -1 &&
+            (emp.role.id === 'developer' || emp.role.id === 'designer' || emp.role.id === 'devops');
+        });
+        var teamAdvance = 0;
+        for (var j = 0; j < workers.length; j++) {
+          teamAdvance += workers[j].technical * 1.5;
+        }
+        if (teamAdvance > 0) {
+          p.progress = Math.min(100, p.progress + teamAdvance);
+          if (p.progress >= 100) {
+            p.status = 'live';
+            p.quality = 80 + randomInt(0, 20);
+            addLog('"' + p.name + '" launched by your team! It\'s live.', 'good');
+            G.reputation += 5;
+            G.overnightEvents.push('"' + p.name + '" launched by the team!');
+          }
+        }
+      }
+      continue;
+    }
+
+    if (p.status === 'live') {
+      p.daysLive += 1;
+
+      // Quality decay
+      var hasTeam = p.assignedTeam && p.assignedTeam.some(function(id) {
+        return G.team.some(function(emp) { return emp.id === id; });
+      });
+      if (hasTeam) {
+        p.quality = Math.max(0, p.quality - 0.5);
+        p.marketInterest = Math.min(100, p.marketInterest + 0.2);
+      } else {
+        p.quality = Math.max(0, p.quality - 3);
+        p.marketInterest = Math.max(0, p.marketInterest - 1);
+      }
+
+      // Daily revenue
+      if (p.quality > 0) {
+        var revenue = Math.round((p.quality / 100) * (p.marketInterest / 100) * p.maxRevenue);
+        G.cash += revenue;
+        G.totalRevenue += revenue;
+        p.totalRevenue += revenue;
+        if (p.daysLive % 7 === 0) {
+          addLog('"' + p.name + '" earned $' + revenue + '/day this week. Quality: ' + Math.round(p.quality) + '%.', 'good');
+        }
+      }
+
+      // Death check
+      if (p.quality <= 0 && p.marketInterest <= 5) {
+        p.status = 'dead';
+        addLog('"' + p.name + '" lost all market interest and shut down.', 'bad');
+        G.overnightEvents.push('"' + p.name + '" is no longer viable and has shut down.');
+        // Unassign team
+        for (var k = 0; k < G.team.length; k++) {
+          if (p.assignedTeam && p.assignedTeam.indexOf(G.team[k].id) !== -1) {
+            G.team[k].assignedProductId = null;
+          }
+        }
+      }
+    }
+  }
+}
+
+function assignToProduct(employeeId, productId) {
+  var emp = findEmployee(employeeId);
+  if (!emp) return false;
+  var product = null;
+  for (var i = 0; i < G.ownedProducts.length; i++) {
+    if (G.ownedProducts[i].id === productId) { product = G.ownedProducts[i]; break; }
+  }
+  if (!product) return false;
+  if (!product.assignedTeam) product.assignedTeam = [];
+  // Remove from other products
+  for (var j = 0; j < G.ownedProducts.length; j++) {
+    if (G.ownedProducts[j].assignedTeam) {
+      G.ownedProducts[j].assignedTeam = G.ownedProducts[j].assignedTeam.filter(function(id) { return id !== employeeId; });
+    }
+  }
+  product.assignedTeam.push(employeeId);
+  emp.assignedProductId = productId;
+  addLog(emp.name + ' assigned to "' + product.name + '".', 'info');
+  return true;
+}
+
+function unassignFromProduct(employeeId) {
+  var emp = findEmployee(employeeId);
+  if (!emp) return;
+  for (var j = 0; j < G.ownedProducts.length; j++) {
+    if (G.ownedProducts[j].assignedTeam) {
+      G.ownedProducts[j].assignedTeam = G.ownedProducts[j].assignedTeam.filter(function(id) { return id !== employeeId; });
+    }
+  }
+  emp.assignedProductId = null;
 }
 
 function agePipelineLeads() {

@@ -34,7 +34,7 @@
     G.player.companyName = companyName;
     G.player.gender = gender;
 
-    generatePipelineLeads();
+    generatePipelineLeads(true); // Guarantee startable project on day 1
     initMarket();
 
     addLog('Day 1 (MON) \u2014 ' + playerName + ' quit their job. $500 in the bank. Let\'s build ' + companyName + '.', 'info');

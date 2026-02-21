@@ -39,6 +39,7 @@ var AP_COSTS = {
 
 function canAct(apNeeded) {
   apNeeded = apNeeded || 1;
+  if (G.energy <= 0) return false; // No energy = no actions
   return G.apCurrent >= apNeeded && !G.gameOver;
 }
 
@@ -187,14 +188,21 @@ function completeHire(candidateId, negotiatedSalary) {
   var c = findCandidate(candidateId);
   if (!c) return;
 
+  var wasPoached = !!c.isBeingPoached;
+
   if (negotiatedSalary !== undefined) c.salary = negotiatedSalary;
 
   var success = hireCandidate(candidateId);
   if (!success) return;
 
-  spendAP(AP_COSTS.hire);
-  spendEnergy(ENERGY_COSTS.hire);
-  confirmThenAfterAction('Hired ' + c.name + ' at $' + c.salary + '/wk!', 'good');
+  // Poached hires already paid AP for the poach action — don't double-charge
+  if (!wasPoached) {
+    spendAP(AP_COSTS.hire);
+    spendEnergy(ENERGY_COSTS.hire);
+  } else {
+    spendEnergy(4); // Small energy cost for onboarding
+  }
+  confirmThenAfterAction('Hired ' + c.name + ' at $' + c.salary.toLocaleString() + '/wk!', 'good');
 }
 
 // --- Action: Fire employee ---
@@ -251,7 +259,65 @@ function actionPoach(competitorId, candidateId) {
   spendAP(AP_COSTS.poach);
   spendEnergy(ENERGY_COSTS.poach);
 
-  confirmThenAfterAction(result.message, result.success ? 'good' : 'bad');
+  if (result.success && result.candidate) {
+    // Immediately open negotiation with the poached candidate
+    UI.renderAll();
+    showNegotiationModal(result.candidate);
+  } else {
+    confirmThenAfterAction(result.message, 'bad');
+  }
+}
+
+// --- Action: Create Own Product ---
+
+function actionCreateProduct(typeId, scopeId, productName) {
+  var scope = OWN_PRODUCT_SCOPES.find(function(s) { return s.id === scopeId; });
+  if (!scope) return;
+  if (G.cash < scope.investment) {
+    addLog('Need $' + scope.investment.toLocaleString() + ' to start development.', 'bad');
+    return;
+  }
+  var product = createOwnProduct(typeId, scopeId, productName);
+  if (!product) return;
+  confirmThenAfterAction('Started developing "' + product.name + '"! Investment: $' + scope.investment.toLocaleString() + '.', 'good');
+}
+
+// --- Action: Work on own product (1 AP) ---
+
+function actionWorkOnProduct(productId) {
+  if (!canAct(AP_COSTS.work_project)) return;
+  var success = workOnOwnProduct(productId);
+  if (!success) return;
+  spendAP(AP_COSTS.work_project);
+  spendEnergy(ENERGY_COSTS.work_project);
+  var product = G.ownedProducts.find(function(p) { return p.id === productId; });
+  var msg = product ? '"' + product.name + '" — ' + Math.round(product.progress) + '% developed' : 'Worked on product.';
+  confirmThenAfterAction(msg, 'good');
+}
+
+// --- Action: Update/patch own product (restore quality) ---
+
+function actionUpdateProduct(productId) {
+  if (!canAct(1)) return;
+  var product = G.ownedProducts.find(function(p) { return p.id === productId; });
+  if (!product) return;
+  var cost = Math.round(product.investment * 0.2);
+  if (G.cash < cost) {
+    addLog('Need $' + cost.toLocaleString() + ' to update "' + product.name + '".', 'bad');
+    return;
+  }
+  var success = updateOwnProduct(productId);
+  if (!success) return;
+  spendAP(1);
+  spendEnergy(8);
+  confirmThenAfterAction('Updated "' + product.name + '"! Quality restored. -$' + cost.toLocaleString() + '.', 'good');
+}
+
+// --- Action: Assign team to own product ---
+
+function actionAssignToProduct(employeeId, productId) {
+  assignToProduct(employeeId, productId);
+  UI.renderAll();
 }
 
 // --- Food Items (NO AP cost, scales $50-$1000, expensive = temp buffs) ---
@@ -353,7 +419,11 @@ function actionStaffParty() {
 // --- Action: Train Player Skill ---
 
 function getTrainingCost(currentLevel) {
-  return 300 + (currentLevel * 200);
+  // Exponential scaling: each level costs significantly more
+  // Level 1→2: $1,000 | 2→3: $2,500 | 3→4: $5,500 | 4→5: $11,000
+  // 5→6: $22,000 | 6→7: $40,000 | 7→8: $70,000 | 8→9: $120,000 | 9→10: $200,000
+  var costs = [0, 1000, 2500, 5500, 11000, 22000, 40000, 70000, 120000, 200000];
+  return costs[currentLevel] || 200000;
 }
 
 function actionTrainSkill(skillName) {

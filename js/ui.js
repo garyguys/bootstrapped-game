@@ -13,6 +13,7 @@ var UI = {
     this.renderTeam();
     this.renderMarket();
     this.renderShop();
+    this.renderHelp();
     this.renderFooter();
     this.updateTimeOfDay();
   },
@@ -158,11 +159,12 @@ var UI = {
     panel.innerHTML = html;
   },
 
-  // --- Projects Tab (now includes work/accept actions) ---
+  // --- Projects Tab ---
   renderProjects: function() {
     var pipelineEl = document.getElementById('project-pipeline');
     var activeEl = document.getElementById('project-active');
     var completedEl = document.getElementById('project-completed');
+    this.renderOwnProducts();
 
     // Pipeline
     if (G.pipeline.length === 0) {
@@ -264,7 +266,7 @@ var UI = {
         if (emp) assignedNames.push(emp.name);
       }
       if (assignedNames.length > 0) {
-        assignedHtml = '<div class="project-assigned">Assigned: ' + escHtml(assignedNames.join(', ')) + '</div>';
+        assignedHtml = '<div class="project-assigned">Team: ' + escHtml(assignedNames.join(', ')) + '</div>';
       }
     }
 
@@ -284,40 +286,59 @@ var UI = {
       reqInfo + assignedHtml + extWarning +
       '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + Math.round(project.progress) + '%"></div></div>' +
       '<div class="project-meta">' + Math.round(project.progress) + '% complete</div>' +
-      '<div class="project-actions"></div>';
+      '<div class="project-actions-row"></div>' +
+      '<div class="project-actions-dropdown" style="display:none;"></div>';
 
-    var actionsDiv = card.querySelector('.project-actions');
+    var actionsRow = card.querySelector('.project-actions-row');
+    var actionsDropdown = card.querySelector('.project-actions-dropdown');
 
-    // Work button (solo projects)
+    // Build action list
+    var hasActions = false;
+
+    if (canWork) hasActions = true;
+    if (daysLeft <= 2 && project.progress < 100) hasActions = true;
+    if (G.team.length > 0) hasActions = true;
+
+    if (hasActions) {
+      var btnActions = document.createElement('button');
+      btnActions.className = 'btn btn-secondary btn-small';
+      btnActions.textContent = '> ACTIONS';
+      btnActions.onclick = function(e) {
+        e.stopPropagation();
+        var dd = card.querySelector('.project-actions-dropdown');
+        dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+      };
+      actionsRow.appendChild(btnActions);
+    }
+
+    // Populate dropdown items
     if (canWork) {
       var btnWork = document.createElement('button');
       btnWork.className = 'btn btn-primary btn-small';
-      btnWork.textContent = 'WORK (' + AP_COSTS.work_project + ' AP)';
+      btnWork.textContent = 'WORK MYSELF (' + AP_COSTS.work_project + ' AP)';
       btnWork.disabled = !canAct(AP_COSTS.work_project);
-      btnWork.onclick = function() { actionWorkProject(project.id); };
-      actionsDiv.appendChild(btnWork);
+      btnWork.onclick = function(e) { e.stopPropagation(); actionWorkProject(project.id); };
+      actionsDropdown.appendChild(btnWork);
     }
 
-    // Client call for near-deadline
     if (daysLeft <= 2 && project.progress < 100) {
       var repCost = Math.min(5, ((project.deadlineExtensions || 0) + 1) * 2);
       var btnCall = document.createElement('button');
       btnCall.className = 'btn btn-secondary btn-small';
-      btnCall.textContent = 'EXTEND (+2d, -' + repCost + ' rep)';
+      btnCall.textContent = 'EXTEND DEADLINE (+2d, -' + repCost + ' rep)';
       btnCall.disabled = !canAct(AP_COSTS.client_call);
-      btnCall.onclick = function() { actionClientCall(project.id); };
-      actionsDiv.appendChild(btnCall);
+      btnCall.onclick = function(e) { e.stopPropagation(); actionClientCall(project.id); };
+      actionsDropdown.appendChild(btnCall);
     }
 
-    // Assign team member dropdown
-    if (project.complexity > 1.5 && G.team.length > 0) {
+    if (G.team.length > 0) {
       var btnAssign = document.createElement('button');
       btnAssign.className = 'btn btn-secondary btn-small';
-      btnAssign.textContent = 'ASSIGN TEAM';
+      btnAssign.textContent = 'ASSIGN TEAM MEMBERS';
       btnAssign.onclick = (function(proj) {
-        return function() { UI.showAssignModal(proj); };
+        return function(e) { e.stopPropagation(); UI.showAssignModal(proj); };
       })(project);
-      actionsDiv.appendChild(btnAssign);
+      actionsDropdown.appendChild(btnAssign);
     }
 
     return card;
@@ -397,8 +418,9 @@ var UI = {
       }
     }
 
-    // Candidates
-    if (G.candidates.length === 0) {
+    // Candidates (filter out poached candidates being negotiated directly)
+    var visibleCandidates = G.candidates.filter(function(c) { return !c.isBeingPoached; });
+    if (visibleCandidates.length === 0) {
       var hint = G.jobPosted
         ? '<div class="empty-state">Job posted \u2014 candidates will apply tomorrow.</div>'
         : '<div class="empty-state">Post a job listing to attract candidates.' +
@@ -406,8 +428,8 @@ var UI = {
       candidatesEl.innerHTML = hint;
     } else {
       candidatesEl.innerHTML = '';
-      for (var j = 0; j < G.candidates.length; j++) {
-        candidatesEl.appendChild(this.createCandidateCard(G.candidates[j]));
+      for (var j = 0; j < visibleCandidates.length; j++) {
+        candidatesEl.appendChild(this.createCandidateCard(visibleCandidates[j]));
       }
     }
   },
@@ -611,11 +633,18 @@ var UI = {
       for (var k = 0; k < max; k++) fog += '?';
       return '<div class="skill-row"><span class="skill-label">' + label + '</span><span class="skill-dots skill-fog">' + fog + '</span></div>';
     }
+    // Color coding: 1-3 red, 4-7 yellow/amber, 8-9 green, 10 cyan
+    var colorClass = '';
+    if (value >= 10) colorClass = 'skill-perfect';
+    else if (value >= 8) colorClass = 'skill-great';
+    else if (value >= 4) colorClass = 'skill-ok';
+    else colorClass = 'skill-low';
+
     var filled = '';
     for (var i = 0; i < max; i++) {
       filled += i < value ? '\u25A0' : '\u25A1';
     }
-    return '<div class="skill-row"><span class="skill-label">' + label + '</span><span class="skill-dots">' + filled + '</span></div>';
+    return '<div class="skill-row"><span class="skill-label">' + label + '</span><span class="skill-dots ' + colorClass + '">' + filled + '</span></div>';
   },
 
   // --- Market Tab ---
@@ -749,13 +778,18 @@ var UI = {
 
     var actionsDiv = card.querySelector('.project-actions');
 
-    // Scout button (multi-level)
+    // Scout button (multi-level with progress)
     var scoutLevel = comp.scoutLevel || 0;
     if (scoutLevel < 3) {
-      var scoutLabel = scoutLevel === 0 ? 'SCOUT' : scoutLevel === 1 ? 'DEEP SCOUT' : 'INTEL SCAN';
+      var apNeeded = typeof getScoutingAPNeeded === 'function' ? getScoutingAPNeeded(comp) : 1;
+      var scoutLabel = scoutLevel === 0 ? 'BEGIN SCOUTING' : scoutLevel === 1 ? 'DEEPER INTEL' : 'FULL INTEL';
+      var scoutProgress = comp.scoutProgress || 0;
+      var styleThr = (typeof SCOUT_THRESHOLDS !== 'undefined' && SCOUT_THRESHOLDS[comp.style]) ? SCOUT_THRESHOLDS[comp.style] : [0, 1, 2, 3];
+      var progressNeeded = styleThr[scoutLevel + 1] || 1;
+      var progressText = scoutProgress > 0 ? ' (' + scoutProgress + '/' + progressNeeded + ' AP)' : '';
       var btnScout = document.createElement('button');
       btnScout.className = 'btn btn-secondary btn-small';
-      btnScout.textContent = scoutLabel + ' (' + AP_COSTS.scout + ' AP)';
+      btnScout.textContent = scoutLabel + progressText + ' — 1 AP';
       btnScout.disabled = !canAct(AP_COSTS.scout);
       btnScout.onclick = (function(id) { return function() { actionScout(id); }; })(comp.id);
       actionsDiv.appendChild(btnScout);
@@ -835,12 +869,12 @@ var UI = {
     upgradesEl.innerHTML = '';
 
     var UPGRADES = [
-      { id: 'coffee_machine', name: 'Coffee Machine',    cost: 500,  apCost: 1, desc: '+10 energy every morning', oneTime: true },
-      { id: 'standing_desk',  name: 'Standing Desk',     cost: 800,  apCost: 1, desc: '+1 AP per day',            oneTime: true },
-      { id: 'second_monitor', name: 'Second Monitor',    cost: 600,  apCost: 1, desc: 'Founder work 20% faster',  oneTime: true },
-      { id: 'office_perks',   name: 'Office Perks',      cost: 1200, apCost: 2, desc: '+15 loyalty for all staff', oneTime: true },
-      { id: 'ping_pong',      name: 'Ping Pong Table',   cost: 400,  apCost: 1, desc: '+5 energy recovery when sleeping', oneTime: true },
-      { id: 'premium_software', name: 'Premium Software', cost: 1000, apCost: 1, desc: '+5% project progress for all', oneTime: true },
+      { id: 'coffee_machine',   name: 'Coffee Machine',    cost: 2500,  apCost: 1, desc: '+10 energy every morning', oneTime: true },
+      { id: 'ping_pong',        name: 'Ping Pong Table',   cost: 3500,  apCost: 1, desc: '+5 energy recovery when sleeping', oneTime: true },
+      { id: 'second_monitor',   name: 'Second Monitor',    cost: 4000,  apCost: 1, desc: 'Founder work 20% faster',  oneTime: true },
+      { id: 'premium_software', name: 'Premium Software',  cost: 5500,  apCost: 1, desc: '+5% project progress for all', oneTime: true },
+      { id: 'office_perks',     name: 'Office Perks',      cost: 8000,  apCost: 2, desc: '+15 loyalty for all staff', oneTime: true },
+      { id: 'standing_desk',    name: 'Standing Desk',     cost: 12000, apCost: 1, desc: '+1 AP per day',            oneTime: true },
     ];
 
     for (var j = 0; j < UPGRADES.length; j++) {
@@ -909,6 +943,274 @@ var UI = {
         trainingEl.appendChild(btn3);
       }
     }
+  },
+
+  // --- Own Products ---
+  renderOwnProducts: function() {
+    var el = document.getElementById('project-owned-products');
+    if (!el) return;
+    el.innerHTML = '';
+
+    // Develop new product button
+    var btnDev = document.createElement('button');
+    btnDev.className = 'btn btn-primary btn-small';
+    btnDev.textContent = '+ DEVELOP NEW PRODUCT';
+    btnDev.onclick = function() { UI.showProductCreateModal(); };
+    el.appendChild(btnDev);
+
+    if (!G.ownedProducts || G.ownedProducts.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No products yet. Develop your own software or platform to generate passive revenue.';
+      el.appendChild(empty);
+      return;
+    }
+
+    for (var i = 0; i < G.ownedProducts.length; i++) {
+      el.appendChild(this.createProductCard(G.ownedProducts[i]));
+    }
+  },
+
+  createProductCard: function(product) {
+    var card = document.createElement('div');
+    card.className = 'project-card';
+
+    var statusColor = { developing: 'var(--amber)', live: 'var(--green)', dead: 'var(--red)' };
+    var statusLabel = { developing: 'DEVELOPING', live: 'LIVE', dead: 'DEAD' };
+
+    var assignedNames = [];
+    if (product.assignedTeam) {
+      for (var t = 0; t < product.assignedTeam.length; t++) {
+        var emp = findEmployee(product.assignedTeam[t]);
+        if (emp) assignedNames.push(emp.name);
+      }
+    }
+
+    var teamHtml = assignedNames.length > 0
+      ? '<div class="project-assigned">Team: ' + escHtml(assignedNames.join(', ')) + '</div>'
+      : '<div class="project-assigned" style="color:var(--amber)">No team assigned — quality decaying!</div>';
+
+    var progressHtml = product.status === 'developing'
+      ? '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + Math.round(product.progress) + '%"></div></div>' +
+        '<div class="project-meta">' + Math.round(product.progress) + '% developed</div>'
+      : '';
+
+    var qualityHtml = product.status === 'live'
+      ? '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + Math.round(product.quality) + '%;background:' + (product.quality > 60 ? 'var(--green)' : product.quality > 30 ? 'var(--amber)' : 'var(--red)') + '"></div></div>' +
+        '<div class="project-meta">Quality: ' + Math.round(product.quality) + '% &mdash; Interest: ' + Math.round(product.marketInterest) + '% &mdash; $' + Math.round((product.quality / 100) * (product.marketInterest / 100) * product.maxRevenue).toLocaleString() + '/day</div>'
+      : '';
+
+    card.innerHTML =
+      '<div class="project-card-header">' +
+        '<span class="project-name">' + escHtml(product.name) + '</span>' +
+        '<span style="color:' + (statusColor[product.status] || 'var(--grey)') + ';font-size:0.65rem;">' + (statusLabel[product.status] || product.status) + '</span>' +
+      '</div>' +
+      '<div class="project-meta">' + escHtml(product.typeName) + ' &mdash; ' + escHtml(product.scopeName) + ' scale &mdash; Invested: $' + product.investment.toLocaleString() + '</div>' +
+      (product.status !== 'dead' ? teamHtml : '') +
+      progressHtml + qualityHtml +
+      (product.status !== 'dead' ? '<div class="project-actions-row"></div><div class="project-actions-dropdown" style="display:none;"></div>' : '');
+
+    if (product.status !== 'dead') {
+      var actionsRow = card.querySelector('.project-actions-row');
+      var actionsDropdown = card.querySelector('.project-actions-dropdown');
+
+      var btnA = document.createElement('button');
+      btnA.className = 'btn btn-secondary btn-small';
+      btnA.textContent = '> ACTIONS';
+      btnA.onclick = function(e) {
+        e.stopPropagation();
+        var dd = card.querySelector('.project-actions-dropdown');
+        dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+      };
+      actionsRow.appendChild(btnA);
+
+      if (product.status === 'developing') {
+        var btnWork = document.createElement('button');
+        btnWork.className = 'btn btn-primary btn-small';
+        btnWork.textContent = 'WORK MYSELF (1 AP)';
+        btnWork.disabled = !canAct(1);
+        btnWork.onclick = (function(id) { return function(e) { e.stopPropagation(); actionWorkOnProduct(id); }; })(product.id);
+        actionsDropdown.appendChild(btnWork);
+      }
+
+      if (product.status === 'live') {
+        var updateCost = Math.round(product.investment * 0.2);
+        var btnUpdate = document.createElement('button');
+        btnUpdate.className = 'btn btn-secondary btn-small';
+        btnUpdate.textContent = 'UPDATE PRODUCT (1 AP, $' + updateCost.toLocaleString() + ')';
+        btnUpdate.disabled = !canAct(1) || G.cash < updateCost;
+        btnUpdate.onclick = (function(id) { return function(e) { e.stopPropagation(); actionUpdateProduct(id); }; })(product.id);
+        actionsDropdown.appendChild(btnUpdate);
+      }
+
+      if (G.team.length > 0) {
+        var btnAssign = document.createElement('button');
+        btnAssign.className = 'btn btn-secondary btn-small';
+        btnAssign.textContent = 'ASSIGN TEAM MEMBERS';
+        btnAssign.onclick = (function(prod) {
+          return function(e) { e.stopPropagation(); UI.showProductAssignModal(prod); };
+        })(product);
+        actionsDropdown.appendChild(btnAssign);
+      }
+    }
+
+    return card;
+  },
+
+  showProductCreateModal: function() {
+    var modal = document.getElementById('event-modal');
+    var title = document.getElementById('event-modal-title');
+    var desc = document.getElementById('event-modal-desc');
+    var choices = document.getElementById('event-modal-choices');
+
+    title.textContent = 'DEVELOP OWN PRODUCT';
+    desc.innerHTML =
+      '<div style="margin-bottom:0.5rem;">' +
+      '<label style="color:var(--grey-light);font-size:0.75rem;">PRODUCT NAME</label><br>' +
+      '<input type="text" id="product-name-input" class="create-input" placeholder="My SaaS Tool" maxlength="30" style="width:100%;margin-top:0.25rem;">' +
+      '</div>' +
+      '<div style="margin-bottom:0.5rem;">' +
+      '<label style="color:var(--grey-light);font-size:0.75rem;">TYPE</label><br>' +
+      '<select id="product-type-select" class="create-input" style="width:100%;margin-top:0.25rem;">' +
+        OWN_PRODUCT_TYPES.map(function(t) { return '<option value="' + t.id + '">' + t.name + ' — ' + t.desc + '</option>'; }).join('') +
+      '</select>' +
+      '</div>' +
+      '<div>' +
+      '<label style="color:var(--grey-light);font-size:0.75rem;">SCOPE & INVESTMENT</label><br>' +
+      '<select id="product-scope-select" class="create-input" style="width:100%;margin-top:0.25rem;">' +
+        OWN_PRODUCT_SCOPES.map(function(s) {
+          return '<option value="' + s.id + '">' + s.name + ' — $' + s.investment.toLocaleString() + ' | $' + s.revenueMin + '-' + s.revenueMax.toLocaleString() + '/day potential | ' + s.devDaysMin + '-' + s.devDaysMax + ' dev days</option>';
+        }).join('') +
+      '</select>' +
+      '</div>';
+
+    choices.innerHTML = '';
+
+    var btnStart = document.createElement('button');
+    btnStart.className = 'btn btn-primary btn-small';
+    btnStart.textContent = 'START DEVELOPMENT';
+    btnStart.onclick = function() {
+      var nameInput = document.getElementById('product-name-input');
+      var typeSelect = document.getElementById('product-type-select');
+      var scopeSelect = document.getElementById('product-scope-select');
+      var name = nameInput ? nameInput.value.trim() : '';
+      var typeId = typeSelect ? typeSelect.value : 'saas_tool';
+      var scopeId = scopeSelect ? scopeSelect.value : 'small';
+      modal.style.display = 'none';
+      actionCreateProduct(typeId, scopeId, name);
+    };
+    choices.appendChild(btnStart);
+
+    var btnCancel = document.createElement('button');
+    btnCancel.className = 'btn btn-secondary btn-small';
+    btnCancel.textContent = 'CANCEL';
+    btnCancel.onclick = function() { modal.style.display = 'none'; };
+    choices.appendChild(btnCancel);
+
+    modal.style.display = 'flex';
+  },
+
+  showProductAssignModal: function(product) {
+    var modal = document.getElementById('event-modal');
+    var title = document.getElementById('event-modal-title');
+    var desc = document.getElementById('event-modal-desc');
+    var choices = document.getElementById('event-modal-choices');
+
+    title.textContent = 'ASSIGN TEAM — ' + product.name;
+    desc.textContent = 'Assign team members to maintain/develop this product. Developers, designers, and devops contribute.';
+    choices.innerHTML = '';
+
+    var devRoles = ['developer', 'designer', 'devops'];
+    for (var i = 0; i < G.team.length; i++) {
+      var emp = G.team[i];
+      if (devRoles.indexOf(emp.role.id) === -1) continue;
+      var isAssigned = product.assignedTeam && product.assignedTeam.indexOf(emp.id) !== -1;
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
+      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' (TEC:' + emp.technical + ')';
+      btn.onclick = (function(empId, prodId, assigned) {
+        return function() {
+          if (assigned) unassignFromProduct(empId);
+          else assignToProduct(empId, prodId);
+          UI.showProductAssignModal(product);
+        };
+      })(emp.id, product.id, isAssigned);
+      choices.appendChild(btn);
+    }
+
+    var btnDone = document.createElement('button');
+    btnDone.className = 'btn btn-danger btn-small';
+    btnDone.textContent = 'DONE';
+    btnDone.onclick = function() { modal.style.display = 'none'; UI.renderAll(); };
+    choices.appendChild(btnDone);
+
+    modal.style.display = 'flex';
+  },
+
+  // --- Help Tab ---
+  renderHelp: function() {
+    var el = document.getElementById('tab-help');
+    if (!el) return;
+    // Only render once (static content)
+    if (el.dataset.rendered) return;
+    el.dataset.rendered = '1';
+    el.innerHTML =
+      '<div class="dashboard-section">' +
+        '<h2 class="section-title">HOW TO PLAY</h2>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Core Stats</h3>' +
+          '<div class="help-item"><span class="help-term">AP</span> Action Points — your daily actions (default 4/day). Spend wisely.</div>' +
+          '<div class="help-item"><span class="help-term">NRG</span> Energy — your stamina. Hitting 0 stops all AP usage for the day and hurts your team.</div>' +
+          '<div class="help-item"><span class="help-term">TEC</span> Technical — solo work speed, product development progress.</div>' +
+          '<div class="help-item"><span class="help-term">COM</span> Communication — reduces team conflict events.</div>' +
+          '<div class="help-item"><span class="help-term">REL</span> Reliability — slows loyalty decay. Your team trusts steady founders.</div>' +
+        '</div>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Projects</h3>' +
+          '<div class="help-item"><span class="help-term">Pipeline</span> Available leads. Accept them (1 AP) before they expire in 3 days.</div>' +
+          '<div class="help-item"><span class="help-term">Complexity</span> Solo-able (≤1.5) can be worked by you directly. Higher needs team members.</div>' +
+          '<div class="help-item"><span class="help-term">Work Myself</span> Spend 1 AP to personally advance a solo project.</div>' +
+          '<div class="help-item"><span class="help-term">Assign Team</span> Assign devs/designers/devops to auto-advance projects daily.</div>' +
+          '<div class="help-item"><span class="help-term">Deadline</span> Extend for -rep. 3+ days overdue risks client cancellation.</div>' +
+        '</div>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Your Products</h3>' +
+          '<div class="help-item">Develop your own software to sell on the free market for passive daily income.</div>' +
+          '<div class="help-item"><span class="help-term">Quality</span> Decays over time without a team assigned. Below 0 = product dies.</div>' +
+          '<div class="help-item"><span class="help-term">Market Interest</span> How hot your product is. Maintained by keeping quality high.</div>' +
+          '<div class="help-item"><span class="help-term">Update</span> Costs 20% of original investment to restore quality and interest.</div>' +
+        '</div>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Team & Hiring</h3>' +
+          '<div class="help-item"><span class="help-term">Loyalty</span> Decays daily. Falls to 0 = they quit. Keep it up with parties, good management.</div>' +
+          '<div class="help-item"><span class="help-term">Payroll</span> Weekly (every 7 days). Miss it and employees walk out + you lose rep.</div>' +
+          '<div class="help-item"><span class="help-term">Interview</span> 1st interview reveals Technical skill. 2nd reveals all skills + perk.</div>' +
+          '<div class="help-item"><span class="help-term">Negotiate</span> The patience bar shows how many counteroffers remain before they walk.</div>' +
+          '<div class="help-item"><span class="help-term">Poach</span> Steal a scouted employee. If successful, negotiate salary immediately.</div>' +
+        '</div>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Market & Scouting</h3>' +
+          '<div class="help-item">Scout competitors to reveal their teams. Large companies need many AP spends over days.</div>' +
+          '<div class="help-item"><span class="help-term">SCOUT</span> Small/niche: 1-3 AP total. VC-funded: 5-15 AP. Megacorps: 8-24 AP per intel level.</div>' +
+          '<div class="help-item"><span class="help-term">Acquire</span> Buy niche startups (5 AP + $50k+) for rep, team, and strategic perks.</div>' +
+        '</div>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Stage Progression</h3>' +
+          '<div class="help-item"><span class="help-term">Freelancer</span> Day 1 start. Solo projects only.</div>' +
+          '<div class="help-item"><span class="help-term">Home Office</span> Day 7 + $1,000. Can hire first employee.</div>' +
+          '<div class="help-item"><span class="help-term">Micro Agency</span> 3 staff + $5k + 30 rep.</div>' +
+          '<div class="help-item"><span class="help-term">Boutique Studio</span> $25k revenue + 70 rep. Larger projects unlock.</div>' +
+          '<div class="help-item"><span class="help-term">Scale-Up</span> 8+ staff + 130 rep + $75k revenue.</div>' +
+          '<div class="help-item"><span class="help-term">Market Leader</span> 200 rep = WIN.</div>' +
+        '</div>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Skill Colors</h3>' +
+          '<div class="help-item"><span class="skill-dots skill-low">\u25A0\u25A0\u25A0</span> 1–3: Needs work</div>' +
+          '<div class="help-item"><span class="skill-dots skill-ok">\u25A0\u25A0\u25A0\u25A0</span> 4–7: Capable</div>' +
+          '<div class="help-item"><span class="skill-dots skill-great">\u25A0\u25A0</span> 8–9: Expert</div>' +
+          '<div class="help-item"><span class="skill-dots skill-perfect">\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0</span> 10: Perfect</div>' +
+        '</div>' +
+      '</div>';
   },
 
   // --- Time of Day ---

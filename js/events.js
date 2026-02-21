@@ -219,22 +219,49 @@ var DAY_EVENTS = [
     id: 'donation_request',
     name: 'Local Tech Community Fundraiser',
     desc: 'A local tech startup community is raising funds. Donating would boost your reputation.',
-    condition: function() { return G.cash >= 300; },
+    condition: function() {
+      var minCash = G.stage === 'freelancer' ? 300 : G.stage === 'home_office' ? 500 : 1000;
+      return G.cash >= minCash;
+    },
     weight: 2,
+    getDonationCosts: function() {
+      // Scale with stage
+      var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+      var mult = stageMults[G.stage] || 1;
+      var large = Math.round(randomInt(100, 250) * mult / 50) * 50;
+      var small = Math.round(randomInt(30, 80) * mult / 50) * 50;
+      return { large: large, small: small };
+    },
     choices: [
-      { text: 'Donate generously (+3 rep)', effect: function() {
-        var cost = randomInt(100, 250);
+      { text: 'Large donation (+3 rep)', getCost: function() {
+        var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+        var mult = stageMults[G.stage] || 1;
+        return Math.round(randomInt(100, 250) * mult / 50) * 50;
+      }, effect: function(project, cost) {
+        if (!cost) {
+          var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+          var mult = stageMults[G.stage] || 1;
+          cost = Math.round(randomInt(100, 250) * mult / 50) * 50;
+        }
         G.cash -= cost;
         G.reputation += 3;
-        addLog('Donated $' + cost + ' to local tech community. +3 rep.', 'good');
-        return 'Donated $' + cost + ' to local tech community. +3 rep from the community.';
+        addLog('Donated $' + cost.toLocaleString() + ' to local tech community. +3 rep.', 'good');
+        return 'Donated $' + cost.toLocaleString() + ' to local tech community. +3 rep.';
       }, requires: function() { return G.cash >= 100; } },
-      { text: 'Small contribution (+1 rep)', effect: function() {
-        var cost = randomInt(30, 80);
+      { text: 'Small contribution (+1 rep)', getCost: function() {
+        var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+        var mult = stageMults[G.stage] || 1;
+        return Math.round(randomInt(30, 80) * mult / 50) * 50;
+      }, effect: function(project, cost) {
+        if (!cost) {
+          var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+          var mult = stageMults[G.stage] || 1;
+          cost = Math.round(randomInt(30, 80) * mult / 50) * 50;
+        }
         G.cash -= cost;
         G.reputation += 1;
-        addLog('Small donation of $' + cost + '. +1 rep.', 'info');
-        return 'Contributed $' + cost + '. A small gesture. +1 rep.';
+        addLog('Small donation of $' + cost.toLocaleString() + '. +1 rep.', 'info');
+        return 'Contributed $' + cost.toLocaleString() + '. A small gesture. +1 rep.';
       } },
       { text: 'Decline', effect: function() {
         addLog('Declined the donation request.', 'info');
@@ -495,7 +522,14 @@ function showDayEventModal(event) {
     var choice = event.choices[i];
     var btn = document.createElement('button');
     btn.className = 'btn btn-small';
-    btn.textContent = choice.text;
+
+    // Pre-calculate cost if this choice has a getCost function (e.g. donation)
+    var choiceCost = null;
+    if (choice.getCost) choiceCost = choice.getCost();
+
+    var btnLabel = choice.text;
+    if (choiceCost !== null) btnLabel += ' — $' + choiceCost.toLocaleString();
+    btn.textContent = btnLabel;
 
     if (choice.requires && !choice.requires()) {
       btn.disabled = true;
@@ -504,10 +538,10 @@ function showDayEventModal(event) {
       btn.classList.add(i === 0 ? 'btn-primary' : 'btn-secondary');
     }
 
-    btn.onclick = (function(c, proj) {
+    btn.onclick = (function(c, proj, preCalcCost) {
       return function() {
         modal.style.display = 'none';
-        var resultMsg = c.effect(proj);
+        var resultMsg = c.effect(proj, preCalcCost);
         // Show confirmation of what happened
         if (resultMsg) {
           showActionConfirmation(resultMsg, 'info', function() {
@@ -517,7 +551,7 @@ function showDayEventModal(event) {
           UI.renderAll();
         }
       };
-    })(choice, eventProject);
+    })(choice, eventProject, choiceCost);
 
     choices.appendChild(btn);
   }

@@ -245,7 +245,7 @@ function negotiateSalary(candidateId, offeredSalary) {
       c.salary = offeredSalary;
       return { accepted: true, message: c.name + ' agrees to $' + offeredSalary + '/wk after some thought.', withdrawn: false };
     } else {
-      return { accepted: false, message: c.name + ' declines. They want at least $' + askingSalary + '/wk. (' + (c.patience - c.patienceUsed) + ' patience remaining)', withdrawn: false };
+      return { accepted: false, message: c.name + ' declines. They want at least $' + askingSalary.toLocaleString() + '/wk.', withdrawn: false };
     }
   } else if (ratio >= 0.70) {
     var lowChance = (ratio - 0.70) * 3.5;
@@ -254,7 +254,7 @@ function negotiateSalary(candidateId, offeredSalary) {
       c.loyalty = Math.max(30, c.loyalty - 10);
       return { accepted: true, message: c.name + ' reluctantly accepts $' + offeredSalary + '/wk.', withdrawn: false };
     } else {
-      return { accepted: false, message: c.name + ' is insulted by the lowball. (' + (c.patience - c.patienceUsed) + ' patience remaining)', withdrawn: false };
+      return { accepted: false, message: c.name + ' is insulted by the lowball offer.', withdrawn: false };
     }
   } else {
     // Below 70%: auto-reject, costs extra patience
@@ -264,7 +264,7 @@ function negotiateSalary(candidateId, offeredSalary) {
       addLog(c.name + ' laughed at your offer and left!', 'bad');
       return { accepted: false, message: c.name + ' laughed at your insulting offer and withdrew!', withdrawn: true };
     }
-    return { accepted: false, message: c.name + ' laughs at your offer. Not even close to $' + askingSalary + '/wk. (' + (c.patience - c.patienceUsed) + ' patience remaining)', withdrawn: false };
+    return { accepted: false, message: c.name + ' laughs at your offer. Not even close to $' + askingSalary.toLocaleString() + '/wk.', withdrawn: false };
   }
 }
 
@@ -273,6 +273,7 @@ function hireCandidate(candidateId) {
   if (!c) return false;
 
   G.candidates = G.candidates.filter(function(x) { return x.id !== candidateId; });
+  c.isBeingPoached = false; // Clear poach flag
   c.daysEmployed = 0;
   G.team.push(c);
 
@@ -514,8 +515,24 @@ function unassignFromProject(employeeId) {
   emp.assignedProjectId = null;
 }
 
-// Scout a competitor to see their team info
-// Now supports multiple scout levels
+// Scouting AP thresholds by company style (AP spends required per scout level)
+var SCOUT_THRESHOLDS = {
+  megacorp:  [0, 8, 16, 24], // 8 AP per level
+  vc_funded: [0, 5, 10, 15], // 5 AP per level
+  budget:    [0, 2, 4,  6],  // 2 AP per level
+  niche:     [0, 1, 2,  3],  // 1 AP per level
+};
+
+// Returns AP needed for next scout level, or 0 if complete
+function getScoutingAPNeeded(comp) {
+  var style = comp.style || 'niche';
+  var thresholds = SCOUT_THRESHOLDS[style] || SCOUT_THRESHOLDS.niche;
+  var currentLevel = comp.scoutLevel || 0;
+  if (currentLevel >= 3) return 0;
+  return thresholds[currentLevel + 1] - (comp.scoutProgress || 0);
+}
+
+// Scout a competitor to see their team info — multi-day mechanic
 function scoutCompetitor(competitorId) {
   var comp = null;
   for (var i = 0; i < G.competitors.length; i++) {
@@ -523,38 +540,66 @@ function scoutCompetitor(competitorId) {
   }
   if (!comp || !comp.alive) return false;
 
+  var style = comp.style || 'niche';
+  var thresholds = SCOUT_THRESHOLDS[style] || SCOUT_THRESHOLDS.niche;
+  var currentLevel = comp.scoutLevel || 0;
+  if (currentLevel >= 3) {
+    addLog(comp.name + ' is fully scouted.', 'warn');
+    return false;
+  }
+
+  comp.scoutProgress = (comp.scoutProgress || 0) + 1;
+  var needed = thresholds[currentLevel + 1];
+
   if (!comp.scoutedTeam) {
+    // First scout: generate team immediately so progress is visible
     comp.scoutedTeam = [];
-    // Larger companies have more team members with higher skills
     var teamSize = Math.max(2, Math.floor(comp.share / 2.5));
     for (var j = 0; j < teamSize; j++) {
       var member = generateCandidate();
-      // Bigger companies = higher skills
       if (comp.style === 'megacorp') {
         member.technical = Math.min(10, member.technical + 3);
         member.communication = Math.min(10, member.communication + 2);
-        member.salary = Math.round(member.salary * 1.5 / 25) * 25;
+        // 4-5 figure salaries for megacorp employees
+        var megaSalary;
+        if (member.technical >= 8) {
+          // Top engineers: $20k–$65k/wk
+          megaSalary = randomInt(20000, 65000);
+        } else if (member.technical >= 6) {
+          // Mid-senior: $8k–$20k/wk
+          megaSalary = randomInt(8000, 20000);
+        } else {
+          // Regular staff: $2k–$8k/wk
+          megaSalary = randomInt(2000, 8000);
+        }
+        member.salary = Math.round(megaSalary / 100) * 100;
+        member.askingSalary = member.salary;
       } else if (comp.style === 'vc_funded') {
         member.technical = Math.min(10, member.technical + 1);
-        member.salary = Math.round(member.salary * 1.2 / 25) * 25;
+        // VC-funded: $1.5k–$6k/wk
+        var vcSalary = randomInt(1500, 6000);
+        member.salary = Math.round(vcSalary / 100) * 100;
+        member.askingSalary = member.salary;
       }
-      // Some members won't leave
       member.willingToLeave = Math.random() < (comp.style === 'megacorp' ? 0.3 : comp.style === 'vc_funded' ? 0.5 : 0.7);
-      member.scoutLevel = 0; // 0=name/role only, 1=skills, 2=loyalty/willingness
+      member.scoutLevel = 0;
       comp.scoutedTeam.push(member);
-    }
-    comp.scouted = true;
-    comp.scoutLevel = 1;
-  } else if (comp.scoutLevel < 3) {
-    // Additional scouting reveals more info
-    comp.scoutLevel = Math.min(3, (comp.scoutLevel || 1) + 1);
-    for (var k = 0; k < comp.scoutedTeam.length; k++) {
-      comp.scoutedTeam[k].scoutLevel = Math.min(2, comp.scoutedTeam[k].scoutLevel + 1);
     }
   }
 
-  var levelText = comp.scoutLevel === 1 ? 'names and roles' : comp.scoutLevel === 2 ? 'skills and salaries' : 'loyalty and willingness';
-  addLog('Scouted ' + comp.name + ' — revealed ' + levelText + '.', 'info');
+  if (comp.scoutProgress >= needed) {
+    // Level up
+    comp.scoutLevel = currentLevel + 1;
+    comp.scouted = true;
+    for (var k = 0; k < comp.scoutedTeam.length; k++) {
+      comp.scoutedTeam[k].scoutLevel = Math.min(2, comp.scoutedTeam[k].scoutLevel + 1);
+    }
+    var levelText = comp.scoutLevel === 1 ? 'names and roles' : comp.scoutLevel === 2 ? 'skills and salaries' : 'loyalty and willingness';
+    addLog('Intel gathered on ' + comp.name + ' — now know their ' + levelText + '.', 'good');
+  } else {
+    var remaining = needed - comp.scoutProgress;
+    addLog('Scouting ' + comp.name + '... ' + remaining + ' more AP needed for intel breakthrough.', 'info');
+  }
   return true;
 }
 
@@ -592,15 +637,28 @@ function poachEmployee(competitorId, candidateId) {
     comp.scoutedTeam.splice(targetIdx, 1);
     // Poached employees want higher salary from bigger companies
     var salaryMult = comp.style === 'megacorp' ? 1.4 : comp.style === 'vc_funded' ? 1.3 : 1.2;
-    target.salary = Math.round(target.salary * salaryMult / 25) * 25;
+    target.salary = Math.round(target.salary * salaryMult / 100) * 100;
     target.askingSalary = target.salary;
     target.skillsRevealed = 2;
+
+    // Ensure work history reflects the company they were poached from
+    target.workHistory = target.workHistory || [];
+    var alreadyHasComp = target.workHistory.some(function(h) { return h.company === comp.name; });
+    if (!alreadyHasComp) {
+      target.workHistory.unshift({ company: comp.name, role: target.role.id, years: randomInt(1, 4) });
+    }
+
+    // Mark as being-poached for immediate negotiation (not shown in candidates list)
+    target.isBeingPoached = true;
+    target.patienceUsed = 0;
+    target.patience = randomInt(2, 4);
     G.candidates.push(target);
-    addLog('Poached ' + target.name + ' from ' + comp.name + '! They want $' + target.salary + '/wk.', 'good');
-    return { success: true, message: 'Successfully poached ' + target.name + '!' };
+
+    addLog('Poached ' + target.name + ' from ' + comp.name + '! Negotiate salary now.', 'good');
+    return { success: true, message: 'Poached ' + target.name + '!', candidate: target };
   } else {
     G.reputation = Math.max(0, G.reputation - 2);
     addLog('Failed to poach from ' + comp.name + '. Word got out. -2 rep.', 'bad');
-    return { success: false, message: 'Poaching attempt failed. -2 rep.' };
+    return { success: false, message: 'Poaching attempt failed. -2 rep.', candidate: null };
   }
 }

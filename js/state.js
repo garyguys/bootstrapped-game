@@ -89,6 +89,13 @@ function createDefaultState() {
     // Flags
     gameOver: false,
     gameWon: false,
+
+    // Player-developed products
+    ownedProducts: [],
+    nextProductId: 1,
+
+    // Project delivery queue (for morning popups)
+    deliveryQueue: [],
   };
 }
 

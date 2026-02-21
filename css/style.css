@@ -1687,6 +1687,62 @@ body.time-dusk      { --bg-current: var(--bg-dusk); }
 .text-cyan { color: var(--cyan) !important; }
 
 /* ============================================
+   Skill Level Colors (v4)
+   ============================================ */
+.skill-dots.skill-low    { color: var(--red); }
+.skill-dots.skill-ok     { color: var(--amber); }
+.skill-dots.skill-great  { color: var(--green); }
+.skill-dots.skill-perfect { color: var(--cyan); }
+
+/* ============================================
+   Project Actions Dropdown (v4)
+   ============================================ */
+.project-actions-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.project-actions-dropdown {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  background: rgba(0,0,0,0.3);
+  border-left: 2px solid var(--green-dark);
+}
+
+/* ============================================
+   Help Tab (v4)
+   ============================================ */
+.help-block {
+  margin-bottom: 1.2rem;
+}
+
+.help-heading {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  color: var(--cyan);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.help-item {
+  font-size: 0.72rem;
+  color: var(--grey-light);
+  padding: 0.25rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.help-term {
+  color: var(--green);
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
+/* ============================================
    Responsive
    ============================================ */
 @media (min-width: 600px) {

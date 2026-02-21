@@ -149,6 +149,7 @@ function addCompetitor(archetype) {
     acqRisks: archetype.acqRisks || [],
     scouted: false,
     scoutLevel: 0,
+    scoutProgress: 0,
     scoutedTeam: null,
   });
   return true;
