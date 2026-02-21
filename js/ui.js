@@ -1222,11 +1222,11 @@ var UI = {
         '<div class="help-block">' +
           '<h3 class="help-heading">Stage Progression</h3>' +
           '<div class="help-item"><span class="help-term">Freelancer</span> Day 1 start. Solo projects only.</div>' +
-          '<div class="help-item"><span class="help-term">Home Office</span> Day 7 + $1,000. Can hire first employee.</div>' +
-          '<div class="help-item"><span class="help-term">Micro Agency</span> 3 staff + $5k + 30 rep.</div>' +
-          '<div class="help-item"><span class="help-term">Boutique Studio</span> $25k revenue + 70 rep. Larger projects unlock.</div>' +
-          '<div class="help-item"><span class="help-term">Scale-Up</span> 8+ staff + 130 rep + $75k revenue.</div>' +
-          '<div class="help-item"><span class="help-term">Market Leader</span> 200 rep = WIN.</div>' +
+          '<div class="help-item"><span class="help-term">Home Office</span> 5 rep. Can hire first employee.</div>' +
+          '<div class="help-item"><span class="help-term">Micro Agency</span> 30 rep. Larger team projects unlock. Can develop own products.</div>' +
+          '<div class="help-item"><span class="help-term">Boutique Studio</span> 70 rep. Complex projects unlock.</div>' +
+          '<div class="help-item"><span class="help-term">Scale-Up</span> 130 rep. Enterprise-level work available.</div>' +
+          '<div class="help-item"><span class="help-term">Market Leader</span> 500 rep = WIN.</div>' +
         '</div>' +
         '<div class="help-block">' +
           '<h3 class="help-heading">Skill Colors</h3>' +

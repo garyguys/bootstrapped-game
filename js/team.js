@@ -458,10 +458,8 @@ function getTeamProjectBonus(project) {
       return project.assignedTeam.indexOf(emp.id) !== -1;
     });
   } else {
-    // No specific assignment: all relevant roles contribute (backward compat)
-    workers = G.team.filter(function(emp) {
-      return emp.role.id === 'developer' || emp.role.id === 'designer' || emp.role.id === 'devops';
-    });
+    // No team assigned — project does not auto-advance
+    workers = [];
   }
 
   for (var i = 0; i < workers.length; i++) {

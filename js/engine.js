@@ -145,6 +145,7 @@ function endDaySilent() {
   agePipelineLeads();
   ageCandidates();
   checkStageProgression();
+  checkBankruptcy();
 }
 
 function startNewDay() {
@@ -243,8 +244,9 @@ function startNewDay() {
     addLog('Feeling rough after pulling an all-nighter. AP reduced.', 'warn');
   }
 
-  // Check stage progression
+  // Check stage progression and bankruptcy
   checkStageProgression();
+  checkBankruptcy();
 
   saveGame();
   UI.renderAll();
@@ -374,17 +376,18 @@ function checkPayroll() {
 }
 
 function checkStageProgression() {
+  if (G.gameOver || G.gameWon) return;
   var prev = G.stage;
 
-  if (G.stage === 'freelancer' && G.day >= 7 && G.cash >= 1000) {
+  if (G.stage === 'freelancer' && G.reputation >= 5) {
     G.stage = 'home_office';
-  } else if (G.stage === 'home_office' && G.team.length >= 3 && G.cash >= 5000 && G.reputation >= 30) {
+  } else if (G.stage === 'home_office' && G.reputation >= 30) {
     G.stage = 'micro';
-  } else if (G.stage === 'micro' && G.totalRevenue >= 25000 && G.reputation >= 70) {
+  } else if (G.stage === 'micro' && G.reputation >= 70) {
     G.stage = 'boutique';
-  } else if (G.stage === 'boutique' && G.team.length >= 8 && G.reputation >= 130 && G.totalRevenue >= 75000) {
+  } else if (G.stage === 'boutique' && G.reputation >= 130) {
     G.stage = 'scaleup';
-  } else if (G.stage === 'scaleup' && G.reputation >= 200) {
+  } else if (G.stage === 'scaleup' && G.reputation >= 500) {
     G.stage = 'leader';
     G.gameWon = true;
   }
@@ -392,6 +395,80 @@ function checkStageProgression() {
   if (G.stage !== prev) {
     addLog('STAGE UP! You are now a ' + getStageName() + '!', 'good');
     G.overnightEvents.push('Milestone reached: ' + getStageName());
+    if (G.gameWon) {
+      saveGame();
+      showWinScreen();
+    }
+  }
+}
+
+// --- Win / Game-Over Screens ---
+
+function showWinScreen() {
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+
+  title.textContent = 'YOU WIN — MARKET LEADER';
+  desc.innerHTML =
+    '<strong>' + escHtml(G.player ? G.player.companyName : 'Your Company') + '</strong> has become a Market Leader!<br><br>' +
+    'Days played: <span style="color:var(--cyan)">' + G.day + '</span><br>' +
+    'Total revenue: <span style="color:var(--green)">$' + G.totalRevenue.toLocaleString() + '</span><br>' +
+    'Final reputation: <span style="color:var(--cyan)">' + G.reputation + ' rep</span><br>' +
+    'Team size: <span style="color:var(--cyan)">' + G.team.length + ' employee(s)</span><br>' +
+    'Projects completed: <span style="color:var(--cyan)">' + G.completedProjects.length + '</span><br><br>' +
+    '<span style="color:var(--amber)">You bootstrapped from $500 to a market-dominating company. Impressive.</span>';
+
+  choices.innerHTML = '';
+  var btnNew = document.createElement('button');
+  btnNew.className = 'btn btn-primary btn-small';
+  btnNew.textContent = 'NEW GAME';
+  btnNew.onclick = function() {
+    modal.style.display = 'none';
+    var screens = document.querySelectorAll('.screen');
+    for (var i = 0; i < screens.length; i++) screens[i].classList.remove('active');
+    document.getElementById('screen-title').classList.add('active');
+  };
+  choices.appendChild(btnNew);
+  modal.style.display = 'flex';
+}
+
+function showGameOverScreen(reason) {
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+
+  title.textContent = 'GAME OVER — BANKRUPT';
+  desc.innerHTML =
+    '<span style="color:var(--red)">' + escHtml(reason || 'Your company has gone bankrupt.') + '</span><br><br>' +
+    'Days survived: <span style="color:var(--cyan)">' + G.day + '</span><br>' +
+    'Total revenue: <span style="color:var(--green)">$' + G.totalRevenue.toLocaleString() + '</span><br>' +
+    'Final reputation: <span style="color:var(--cyan)">' + G.reputation + ' rep</span><br>' +
+    'Projects completed: <span style="color:var(--cyan)">' + G.completedProjects.length + '</span><br><br>' +
+    '<span style="color:var(--grey-light)">Bootstrap harder next time.</span>';
+
+  choices.innerHTML = '';
+  var btnNew = document.createElement('button');
+  btnNew.className = 'btn btn-primary btn-small';
+  btnNew.textContent = 'TRY AGAIN';
+  btnNew.onclick = function() {
+    modal.style.display = 'none';
+    var screens = document.querySelectorAll('.screen');
+    for (var i = 0; i < screens.length; i++) screens[i].classList.remove('active');
+    document.getElementById('screen-title').classList.add('active');
+  };
+  choices.appendChild(btnNew);
+  modal.style.display = 'flex';
+}
+
+function checkBankruptcy() {
+  if (G.gameOver || G.gameWon) return;
+  if (G.debt >= 5000) {
+    G.gameOver = true;
+    saveGame();
+    showGameOverScreen('Accumulated $' + G.debt.toLocaleString() + ' in unpaid debt after missing payroll.');
   }
 }
 
