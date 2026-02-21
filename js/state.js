@@ -111,6 +111,12 @@ function createDefaultState() {
     lastPressReleaseDay: -99,
     lastTrainingDay: -99,
     lastOpenSourceDay: -99,
+
+    // Food cooldown
+    lastFoodOrderDay: -99,
+
+    // Transaction ledger
+    transactions: [],  // { day, type: 'income'|'expense', category, amount, description }
   };
 }
 
@@ -135,6 +141,18 @@ function loadGame() {
     if (!raw) return false;
     var saved = JSON.parse(raw);
     G = Object.assign(createDefaultState(), saved);
+    // Migrate old 'developing' products to new greenlight/building system
+    if (G.ownedProducts) {
+      G.ownedProducts.forEach(function(p) {
+        if (p.status === 'developing') {
+          p.status = 'building';
+          p.devDaysRequired = p.devDaysNeeded || p.devDaysRequired || 20;
+          p.devDaysWorked = Math.round((p.progress || 0) / 100 * p.devDaysRequired);
+          p.apInvested = 12; p.apRequired = 12;
+        }
+        if (!p.transactions) p.transactions = undefined; // clean up if somehow nested
+      });
+    }
     return true;
   } catch (e) {
     console.warn('Load failed:', e);

@@ -80,6 +80,14 @@ function actionWorkProject(projectId) {
     project.progress = Math.max(0, project.progress - 10);
   }
 
+  // Same-day delivery: if progress hit 100, deliver immediately
+  checkProjectDeliveries();
+  if (G.deliveryQueue && G.deliveryQueue.length > 0) {
+    afterAction();
+    showNextDeliveryPopup();
+    return;
+  }
+
   // Keep dropdown open after working — no confirmation popup needed
   _keepDropdownOpen = projectId;
   afterAction();
@@ -291,6 +299,27 @@ function actionCreateProduct(typeId, scopeId, productName) {
   confirmThenAfterAction('Started developing "' + product.name + '"! Investment: $' + scope.investment.toLocaleString() + '.', 'good');
 }
 
+// --- Action: Invest AP into product greenlight phase (1 AP) ---
+
+function actionInvestInProduct(productId) {
+  if (!canAct(1)) return;
+  var product = G.ownedProducts.find(function(p) { return p.id === productId; });
+  if (!product || product.status !== 'greenlight') return;
+
+  spendAP(1);
+  spendEnergy(ENERGY_COSTS.work_project);
+  product.apInvested = (product.apInvested || 0) + 1;
+
+  if (product.apInvested >= product.apRequired) {
+    product.status = 'building';
+    addLog('"' + product.name + '" greenlighted! Development begins.', 'good');
+    confirmThenAfterAction('"' + product.name + '" greenlighted! Team can now build it.', 'good');
+  } else {
+    addLog('"' + product.name + '": ' + product.apInvested + '/' + product.apRequired + ' AP towards greenlight.', 'info');
+    afterAction();
+  }
+}
+
 // --- Action: Work on own product (1 AP) ---
 
 function actionWorkOnProduct(productId) {
@@ -300,7 +329,14 @@ function actionWorkOnProduct(productId) {
   spendAP(AP_COSTS.work_project);
   spendEnergy(ENERGY_COSTS.work_project);
   var product = G.ownedProducts.find(function(p) { return p.id === productId; });
-  var msg = product ? '"' + product.name + '" — ' + Math.round(product.progress) + '% developed' : 'Worked on product.';
+  var msg;
+  if (product && product.status === 'live') {
+    msg = '"' + product.name + '" is now LIVE!';
+  } else if (product) {
+    msg = '"' + product.name + '" — ' + (product.devDaysWorked || 0) + '/' + product.devDaysRequired + ' dev days';
+  } else {
+    msg = 'Worked on product.';
+  }
   confirmThenAfterAction(msg, 'good');
 }
 
@@ -354,6 +390,18 @@ function actionOrderFood(foodId) {
   }
   if (!item) return;
 
+  // Once-per-day limit
+  if (G.lastFoodOrderDay >= G.day) {
+    addLog('Already had food today. Come back tomorrow.', 'warn');
+    return;
+  }
+
+  // Buff items require existing buff to expire first
+  if (item.buff && G.perks.some(function(p) { return p.id === 'food_speed'; })) {
+    addLog('Speed buff still active. Wait for it to expire.', 'warn');
+    return;
+  }
+
   var cost = getFoodCost(item);
   if (G.cash < cost) {
     addLog('Can\'t afford ' + item.name + '.', 'bad');
@@ -361,6 +409,8 @@ function actionOrderFood(foodId) {
   }
 
   G.cash -= cost;
+  G.lastFoodOrderDay = G.day;
+  recordTransaction('expense', 'food', cost, item.name);
   G.energy = Math.min(G.energyMax, G.energy + item.energy);
 
   // Apply temporary buff
@@ -451,12 +501,13 @@ function actionTrainSkill(skillName) {
     return;
   }
 
+  var skillLabels = { technical: 'Technical', communication: 'Communication', reliability: 'Reliability' };
   G.cash -= cost;
   G.player[skillName] += 1;
+  recordTransaction('expense', 'training', cost, skillLabels[skillName] + ' skill training');
   spendAP(AP_COSTS.train_skill);
   spendEnergy(ENERGY_COSTS.train_skill);
 
-  var skillLabels = { technical: 'Technical', communication: 'Communication', reliability: 'Reliability' };
   addLog('Training complete! ' + skillLabels[skillName] + ' is now ' + G.player[skillName] + '/10.', 'good');
   confirmThenAfterAction(skillLabels[skillName] + ' improved to ' + G.player[skillName] + '/10!', 'good');
 }
@@ -470,19 +521,64 @@ function showNegotiationModal(candidate) {
   var askingEl = document.getElementById('negotiation-asking');
   var offerInput = document.getElementById('negotiation-offer');
   var resultEl = document.getElementById('negotiation-result');
-  var patienceEl = document.getElementById('negotiation-patience');
   var btnOffer = document.getElementById('negotiation-submit');
   var btnAccept = document.getElementById('negotiation-accept');
   var btnClose = document.getElementById('negotiation-close');
 
   nameEl.textContent = candidate.name;
   roleEl.textContent = candidate.levelName + ' ' + candidate.role.name;
-  askingEl.textContent = '$' + candidate.askingSalary + '/wk';
-  offerInput.value = candidate.askingSalary;
-  offerInput.min = Math.round(candidate.askingSalary * 0.5);
-  offerInput.max = Math.round(candidate.askingSalary * 1.5);
+  askingEl.textContent = '$' + candidate.askingSalary.toLocaleString() + '/wk';
   resultEl.textContent = '';
   resultEl.className = 'negotiation-result';
+
+  // +/- offer buttons (replace the number input)
+  var interval = Math.round(candidate.askingSalary * 0.05);
+  var minOffer = Math.round(candidate.askingSalary * 0.5);
+  var maxOffer = Math.round(candidate.askingSalary * 1.5);
+  var currentOffer = candidate.askingSalary;
+
+  offerInput.style.display = 'none';
+
+  // Remove any previously injected rows
+  var oldRow = modal.querySelector('.neg-offer-row');
+  if (oldRow && oldRow.parentNode) oldRow.parentNode.removeChild(oldRow);
+  var oldHint = modal.querySelector('.neg-hint');
+  if (oldHint && oldHint.parentNode) oldHint.parentNode.removeChild(oldHint);
+
+  var offerRow = document.createElement('div');
+  offerRow.className = 'neg-offer-row';
+
+  var btnMinus = document.createElement('button');
+  btnMinus.className = 'btn btn-secondary btn-small';
+  btnMinus.textContent = '\u2212';
+
+  var salDisplay = document.createElement('span');
+  salDisplay.id = 'neg-display';
+  salDisplay.textContent = '$' + currentOffer.toLocaleString() + '/wk';
+
+  var btnPlus = document.createElement('button');
+  btnPlus.className = 'btn btn-secondary btn-small';
+  btnPlus.textContent = '+';
+
+  btnMinus.onclick = function() {
+    currentOffer = Math.max(minOffer, currentOffer - interval);
+    salDisplay.textContent = '$' + currentOffer.toLocaleString() + '/wk';
+  };
+  btnPlus.onclick = function() {
+    currentOffer = Math.min(maxOffer, currentOffer + interval);
+    salDisplay.textContent = '$' + currentOffer.toLocaleString() + '/wk';
+  };
+
+  offerRow.appendChild(btnMinus);
+  offerRow.appendChild(salDisplay);
+  offerRow.appendChild(btnPlus);
+
+  var hint = document.createElement('div');
+  hint.className = 'neg-hint';
+  hint.textContent = '\u00b1$' + interval.toLocaleString() + ' per click (5% of asking)';
+
+  offerInput.parentNode.insertBefore(offerRow, offerInput.nextSibling);
+  offerInput.parentNode.insertBefore(hint, offerRow.nextSibling);
 
   // Render patience bar
   updatePatienceBar(candidate);
@@ -497,9 +593,7 @@ function showNegotiationModal(candidate) {
   };
 
   btnOffer.onclick = function() {
-    var offered = parseInt(offerInput.value);
-    if (isNaN(offered) || offered <= 0) return;
-
+    var offered = currentOffer;
     var result = negotiateSalary(candidate.id, offered);
     resultEl.textContent = result.message;
 
@@ -515,7 +609,6 @@ function showNegotiationModal(candidate) {
       return;
     }
 
-    // Update patience bar
     updatePatienceBar(candidate);
 
     if (result.accepted) {
@@ -560,7 +653,16 @@ function getDashboardActions() {
   var actions = [];
 
   // Post job
-  if (!G.jobPosted && canPostJob()) {
+  if (G.stage === 'freelancer') {
+    actions.push({
+      id: 'post_job_locked',
+      name: 'Post Job Listing',
+      desc: 'Reach Home Office (25 rep) to hire',
+      cost: AP_COSTS.post_job + ' AP',
+      enabled: false,
+      action: function() {},
+    });
+  } else if (!G.jobPosted && canPostJob()) {
     actions.push({
       id: 'post_job',
       name: 'Post Job Listing',
@@ -710,12 +812,13 @@ function actionPressRelease() {
   G.cash -= cost;
   G.reputation += repGain;
   G.lastPressReleaseDay = G.day;
+  recordTransaction('expense', 'operations', cost, 'Press release');
   spendAP(pressAPCost);
   addLog('Press release issued! +' + repGain + ' rep. -$' + cost.toLocaleString() + '.', 'good');
   confirmThenAfterAction('Press release out! +' + repGain + ' rep.', 'good');
 }
 
-// --- Action: Team Training Day ---
+// --- Action: Team Training Day (shows preview modal before confirming) ---
 function actionTeamTrainingDay() {
   if (!canAct(2)) return;
   var cost = 200 * G.team.length;
@@ -723,17 +826,54 @@ function actionTeamTrainingDay() {
     addLog('Can\'t afford team training. Need $' + cost.toLocaleString() + '.', 'bad');
     return;
   }
-  G.cash -= cost;
-  G.lastTrainingDay = G.day;
-  spendAP(2);
+
+  // Pre-roll skill results for preview
   var skills = ['technical', 'communication', 'reliability'];
-  for (var i = 0; i < G.team.length; i++) {
-    var sk = randomChoice(skills);
-    G.team[i][sk] = Math.min(10, G.team[i][sk] + 1);
-    G.team[i].loyalty = Math.min(100, G.team[i].loyalty + 10);
-  }
-  addLog('Team training day complete! All employees gained +1 to a skill and +10 loyalty. -$' + cost.toLocaleString() + '.', 'good');
-  confirmThenAfterAction('Team training done! +1 skill, +10 loyalty for everyone.', 'good');
+  var skillLabels = { technical: 'TEC', communication: 'COM', reliability: 'REL' };
+  var results = G.team.map(function(emp) {
+    var available = skills.filter(function(s) { return emp[s] < 10; });
+    var sk = randomChoice(available.length ? available : skills);
+    return { emp: emp, skill: sk, oldVal: emp[sk], newVal: Math.min(10, emp[sk] + 1) };
+  });
+
+  var modal = document.getElementById('event-modal');
+  document.getElementById('event-modal-title').textContent = 'TEAM TRAINING DAY';
+  var lines = results.map(function(r) {
+    return escHtml(r.emp.name) + ' [' + r.emp.role.id.toUpperCase().slice(0, 3) + ']: ' +
+      skillLabels[r.skill] + ' ' + r.oldVal + ' \u2192 ' + r.newVal;
+  });
+  document.getElementById('event-modal-desc').innerHTML =
+    'Cost: <span style="color:var(--amber)">$' + cost.toLocaleString() + '</span> | +10 loyalty for all<br><br>' +
+    lines.join('<br>');
+
+  var choices = document.getElementById('event-modal-choices');
+  choices.innerHTML = '';
+
+  var btnCancel = document.createElement('button');
+  btnCancel.className = 'btn btn-secondary btn-small';
+  btnCancel.textContent = 'CANCEL';
+  btnCancel.onclick = function() { modal.style.display = 'none'; };
+
+  var btnConfirm = document.createElement('button');
+  btnConfirm.className = 'btn btn-primary btn-small';
+  btnConfirm.textContent = 'CONFIRM ($' + cost.toLocaleString() + ')';
+  btnConfirm.onclick = function() {
+    modal.style.display = 'none';
+    for (var i = 0; i < results.length; i++) {
+      results[i].emp[results[i].skill] = results[i].newVal;
+      results[i].emp.loyalty = Math.min(100, results[i].emp.loyalty + 10);
+    }
+    G.cash -= cost;
+    G.lastTrainingDay = G.day;
+    recordTransaction('expense', 'training', cost, 'Team training day');
+    spendAP(2);
+    addLog('Team training done! All employees gained +1 skill and +10 loyalty. -$' + cost.toLocaleString() + '.', 'good');
+    confirmThenAfterAction('Team training done! +1 skill, +10 loyalty for everyone.', 'good');
+  };
+
+  choices.appendChild(btnCancel);
+  choices.appendChild(btnConfirm);
+  modal.style.display = 'flex';
 }
 
 // --- Action: Open Source Contribution ---
@@ -746,6 +886,19 @@ function actionOpenSource() {
   G._openSourcePendingLead = true;
   addLog('Published an open source contribution. +3 rep. Extra lead incoming tomorrow.', 'good');
   confirmThenAfterAction('Open source published! +3 rep. New lead arrives tomorrow.', 'good');
+}
+
+// --- Action: Decline a pipeline lead ---
+function actionDeclineLead(projectId) {
+  var idx = -1;
+  for (var i = 0; i < G.pipeline.length; i++) {
+    if (G.pipeline[i].id === projectId) { idx = i; break; }
+  }
+  if (idx === -1) return;
+  var lead = G.pipeline[idx];
+  G.pipeline.splice(idx, 1);
+  addLog('Passed on ' + lead.name + ' from ' + lead.client + '.', 'info');
+  UI.renderProjects();
 }
 
 // --- Action: Clear Completed Projects ---

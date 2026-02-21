@@ -274,7 +274,7 @@ function checkProjectDeliveries() {
     G.cash += payout;
     G.reputation += repGain;
     G.totalRevenue += payout;
-    G.completedProjects.push(d);
+    recordTransaction('income', 'project', payout, d.name + ' delivered to ' + d.client);
 
     // Get names of workers for this project
     var workerNames = [];
@@ -288,6 +288,11 @@ function checkProjectDeliveries() {
       }
     }
     if (d.founderWorking) workerNames.unshift(G.player ? G.player.name : 'You');
+
+    d.workerNames = workerNames.slice();
+    d.repGained = repGain;
+    d.happinessLabel = happiness;
+    G.completedProjects.push(d);
 
     // Random outcome event
     var outcomeEvent = null;
@@ -380,11 +385,13 @@ function createOwnProduct(typeId, scopeId, productName) {
     scope: scopeId,
     scopeName: scope.name,
     investment: scope.investment,
-    devDaysNeeded: devDays,
-    progress: 0,      // 0-100 development progress
+    devDaysRequired: devDays,
+    devDaysWorked: 0,
+    apInvested: 0,
+    apRequired: 12,
     quality: 0,       // 0-100 quality once live
     maxRevenue: maxRevenue,
-    status: 'developing', // 'developing' | 'live' | 'dead'
+    status: 'greenlight', // 'greenlight' | 'building' | 'live' | 'dead'
     assignedTeam: [],
     daysLive: 0,
     totalRevenue: 0,
@@ -392,7 +399,8 @@ function createOwnProduct(typeId, scopeId, productName) {
   };
 
   G.ownedProducts.push(product);
-  addLog('Started developing "' + product.name + '"! Invested $' + scope.investment.toLocaleString() + '.', 'good');
+  recordTransaction('expense', 'product', scope.investment, 'Product investment: ' + product.name);
+  addLog('Started "' + product.name + '"! Invested $' + scope.investment.toLocaleString() + '. Contribute 12 AP to greenlight it.', 'good');
   return product;
 }
 
@@ -401,19 +409,14 @@ function workOnOwnProduct(productId) {
   for (var i = 0; i < G.ownedProducts.length; i++) {
     if (G.ownedProducts[i].id === productId) { product = G.ownedProducts[i]; break; }
   }
-  if (!product || product.status !== 'developing') return false;
+  if (!product || product.status !== 'building') return false;
 
-  var playerTech = G.player ? G.player.technical : 2;
-  var advance = 10 + (playerTech * 2); // 12%-30% per action
-  if (G.upgrades.indexOf('second_monitor') !== -1) advance = Math.round(advance * 1.2);
-  if (G.energy < 25) advance = Math.round(advance * 0.75);
+  product.devDaysWorked = (product.devDaysWorked || 0) + 1;
+  addLog('Worked on "' + product.name + '" — ' + product.devDaysWorked + '/' + product.devDaysRequired + ' dev days.', 'good');
 
-  product.progress = Math.min(100, product.progress + advance);
-  addLog('Worked on "' + product.name + '" — ' + Math.round(product.progress) + '% complete.', 'good');
-
-  if (product.progress >= 100) {
+  if (product.devDaysWorked >= product.devDaysRequired) {
     product.status = 'live';
-    product.quality = 80 + randomInt(0, 20);
+    product.quality = 75;
     addLog('"' + product.name + '" launched! It\'s live and generating revenue.', 'good');
     G.reputation += 5;
     G.overnightEvents.push('"' + product.name + '" is live on the market!');
@@ -448,26 +451,19 @@ function tickProducts() {
     var p = G.ownedProducts[i];
     if (p.status === 'dead') continue;
 
-    if (p.status === 'developing') {
-      // Team auto-advances development
+    if (p.status === 'greenlight') {
+      continue; // waiting for AP investment via Invest AP action
+    }
+
+    if (p.status === 'building') {
       if (p.assignedTeam && p.assignedTeam.length > 0) {
-        var workers = G.team.filter(function(emp) {
-          return p.assignedTeam.indexOf(emp.id) !== -1 &&
-            (emp.role.id === 'developer' || emp.role.id === 'designer' || emp.role.id === 'devops');
-        });
-        var teamAdvance = 0;
-        for (var j = 0; j < workers.length; j++) {
-          teamAdvance += workers[j].technical * 1.5;
-        }
-        if (teamAdvance > 0) {
-          p.progress = Math.min(100, p.progress + teamAdvance);
-          if (p.progress >= 100) {
-            p.status = 'live';
-            p.quality = 80 + randomInt(0, 20);
-            addLog('"' + p.name + '" launched by your team! It\'s live.', 'good');
-            G.reputation += 5;
-            G.overnightEvents.push('"' + p.name + '" launched by the team!');
-          }
+        p.devDaysWorked = (p.devDaysWorked || 0) + p.assignedTeam.length;
+        if (p.devDaysWorked >= p.devDaysRequired) {
+          p.status = 'live';
+          p.quality = 75;
+          addLog('"' + p.name + '" launched by your team! It\'s live.', 'good');
+          G.reputation += 5;
+          G.overnightEvents.push('"' + p.name + '" is now live!');
         }
       }
       continue;
@@ -495,6 +491,7 @@ function tickProducts() {
         G.cash += revenue;
         G.totalRevenue += revenue;
         p.totalRevenue += revenue;
+        recordTransaction('income', 'product', revenue, p.name + ' daily revenue');
         if (p.daysLive % 7 === 0) {
           addLog('"' + p.name + '" earned $' + revenue + '/day this week. Quality: ' + Math.round(p.quality) + '%.', 'good');
         }

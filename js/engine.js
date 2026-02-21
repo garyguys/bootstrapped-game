@@ -4,6 +4,47 @@
    Deadline penalties. Player skills.
    ============================================ */
 
+// --- Transaction Ledger ---
+function recordTransaction(type, category, amount, description) {
+  if (!G.transactions) G.transactions = [];
+  G.transactions.push({ day: G.day, type: type, category: category, amount: amount, description: description });
+}
+
+// --- Stage Helpers ---
+function getStageNameById(id) {
+  for (var i = 0; i < STAGES.length; i++) {
+    if (STAGES[i].id === id) return STAGES[i].name;
+  }
+  return id;
+}
+
+var STAGE_UNLOCKS = {
+  home_office:  ['Hire employees & post job listings', 'Press releases available'],
+  startup:      ['Develop your own products', 'Projects up to complexity 2.5'],
+  seed_stage:   ['Projects up to complexity 3', 'Higher-value contracts'],
+  series_a:     ['Projects up to complexity 4', 'Premium enterprise clients'],
+  growth:       ['Max complexity projects (5)'],
+  enterprise:   ['One stage from victory \u2014 keep pushing!'],
+  leader:       ['You\'ve won! Congratulations.'],
+};
+
+function showStageUpgradeModal(from, to) {
+  var modal = document.getElementById('event-modal');
+  document.getElementById('event-modal-title').textContent = 'STAGE UP!';
+  var unlocks = STAGE_UNLOCKS[to] || [];
+  document.getElementById('event-modal-desc').innerHTML =
+    '<strong>' + getStageNameById(from) + '</strong> &rarr; <strong>' + getStageNameById(to) + '</strong>' +
+    (unlocks.length ? '<br><br>Unlocks:<br>' + unlocks.map(function(u) { return '&bull; ' + u; }).join('<br>') : '');
+  var choices = document.getElementById('event-modal-choices');
+  choices.innerHTML = '';
+  var btn = document.createElement('button');
+  btn.className = 'btn btn-primary btn-small';
+  btn.textContent = "LET'S GO!";
+  btn.onclick = function() { modal.style.display = 'none'; };
+  choices.appendChild(btn);
+  modal.style.display = 'flex';
+}
+
 function spendAP(amount) {
   amount = amount || 1;
   if (G.apCurrent < amount) return false;
@@ -348,6 +389,7 @@ function checkPayroll() {
 
   if (G.cash >= amount) {
     G.cash -= amount;
+    recordTransaction('expense', 'payroll', amount, 'Weekly payroll (' + G.team.length + ' employees)');
     addLog('Payroll: -$' + amount.toLocaleString() + ' for ' + G.team.length + ' employee(s).', 'warn');
     G.overnightEvents.push('Weekly payroll processed: -$' + amount.toLocaleString());
   } else {
@@ -405,6 +447,7 @@ function checkStageProgression() {
   }
 
   if (G.stage !== prev) {
+    showStageUpgradeModal(prev, G.stage);
     addLog('STAGE UP! You are now a ' + getStageName() + '!', 'good');
     G.overnightEvents.push('Milestone reached: ' + getStageName());
     if (G.gameWon) {

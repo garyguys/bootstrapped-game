@@ -20,7 +20,8 @@ var UI = {
 
   // --- Header ---
   renderHeader: function() {
-    document.getElementById('header-day').textContent = 'DAY ' + G.day;
+    var week = Math.ceil(G.day / 7);
+    document.getElementById('header-day').textContent = 'WEEK ' + week + '  |  DAY ' + G.day;
     document.getElementById('header-clock').textContent = getTimeString();
 
     // Company name — clickable to open company modal
@@ -117,6 +118,41 @@ var UI = {
         '<span class="action-cost">' + escHtml(a.cost) + '</span>';
       btn.onclick = a.action;
       actionsContainer.appendChild(btn);
+    }
+
+    // P&L section
+    var plEl = document.getElementById('dashboard-pl');
+    if (plEl && G.transactions && G.transactions.length > 0) {
+      var cats = { income: 0, payroll: 0, food: 0, upgrade: 0, training: 0, ops: 0, product: 0, other: 0 };
+      for (var ti = 0; ti < G.transactions.length; ti++) {
+        var tx = G.transactions[ti];
+        if (tx.type === 'income') cats.income += tx.amount;
+        else if (tx.category === 'payroll')    cats.payroll  += tx.amount;
+        else if (tx.category === 'food')       cats.food     += tx.amount;
+        else if (tx.category === 'upgrade')    cats.upgrade  += tx.amount;
+        else if (tx.category === 'training')   cats.training += tx.amount;
+        else if (tx.category === 'operations') cats.ops      += tx.amount;
+        else if (tx.category === 'product')    cats.product  += tx.amount;
+        else cats.other += tx.amount;
+      }
+      var totalExpenses = cats.payroll + cats.food + cats.upgrade + cats.training + cats.ops + cats.product + cats.other;
+      var net = cats.income - totalExpenses;
+      plEl.innerHTML =
+        '<h3 class="section-title">PROFIT & LOSS</h3>' +
+        '<div class="negotiation-row"><span>Revenue</span><span style="color:var(--green)">$' + cats.income.toLocaleString() + '</span></div>' +
+        (cats.payroll  ? '<div class="negotiation-row"><span>Payroll</span><span style="color:var(--red)">-$' + cats.payroll.toLocaleString() + '</span></div>' : '') +
+        (cats.food     ? '<div class="negotiation-row"><span>Food</span><span style="color:var(--amber)">-$' + cats.food.toLocaleString() + '</span></div>' : '') +
+        (cats.upgrade  ? '<div class="negotiation-row"><span>Upgrades</span><span style="color:var(--amber)">-$' + cats.upgrade.toLocaleString() + '</span></div>' : '') +
+        (cats.training ? '<div class="negotiation-row"><span>Training</span><span style="color:var(--amber)">-$' + cats.training.toLocaleString() + '</span></div>' : '') +
+        (cats.ops      ? '<div class="negotiation-row"><span>Operations</span><span style="color:var(--amber)">-$' + cats.ops.toLocaleString() + '</span></div>' : '') +
+        (cats.product  ? '<div class="negotiation-row"><span>Product</span><span style="color:var(--amber)">-$' + cats.product.toLocaleString() + '</span></div>' : '') +
+        (cats.other    ? '<div class="negotiation-row"><span>Other</span><span style="color:var(--amber)">-$' + cats.other.toLocaleString() + '</span></div>' : '') +
+        '<div class="negotiation-row" style="border-top:1px solid var(--border);margin-top:0.25rem;padding-top:0.25rem;">' +
+          '<span>Net</span><span style="color:' + (net >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (net >= 0 ? '+' : '') + '$' + net.toLocaleString() + '</span>' +
+        '</div>';
+      plEl.style.display = 'block';
+    } else if (plEl) {
+      plEl.style.display = 'none';
     }
 
     this.renderLog();
@@ -251,13 +287,19 @@ var UI = {
     btnAccept.onclick = function() { actionAcceptProject(project.id); };
     actionsDiv.appendChild(btnAccept);
 
+    var btnDecline = document.createElement('button');
+    btnDecline.className = 'btn btn-secondary btn-small';
+    btnDecline.textContent = 'DECLINE';
+    btnDecline.onclick = function() { actionDeclineLead(project.id); };
+    actionsDiv.appendChild(btnDecline);
+
     return card;
   },
 
   createActiveProjectCard: function(project) {
     var card = document.createElement('div');
     card.className = 'project-card';
-    var canWork = project.complexity <= 1.5 && project.progress < 100;
+    var canWork = project.progress < 100;
     var daysLeft = project.daysToComplete - project.daysActive;
     var overdueClass = daysLeft <= 0 ? ' text-red' : '';
 
@@ -309,7 +351,7 @@ var UI = {
     var hasActions = false;
 
     if (canWork) hasActions = true;
-    if (daysLeft <= 2 && project.progress < 100) hasActions = true;
+    if (project.progress < 100) hasActions = true; // extend always available
     if (G.team.length > 0) hasActions = true;
 
     if (hasActions) {
@@ -334,7 +376,7 @@ var UI = {
       actionsDropdown.appendChild(btnWork);
     }
 
-    if (daysLeft <= 2 && project.progress < 100) {
+    if (project.progress < 100) {
       var repCost = Math.min(5, ((project.deadlineExtensions || 0) + 1) * 2);
       var btnCall = document.createElement('button');
       btnCall.className = 'btn btn-secondary btn-small';
@@ -859,22 +901,28 @@ var UI = {
     var foodEl = document.getElementById('shop-food');
     foodEl.innerHTML = '';
 
+    var orderedToday = G.lastFoodOrderDay >= G.day;
+    var foodSpeedPerk = G.perks.find(function(p) { return p.id === 'food_speed'; });
+
     for (var i = 0; i < FOOD_ITEMS.length; i++) {
-      var item = FOOD_ITEMS[i];
-      var cost = getFoodCost(item);
-      var btn = document.createElement('button');
-      btn.className = 'action-btn';
-      btn.disabled = G.cash < cost;
-      btn.innerHTML =
-        '<div>' +
-          '<span class="action-name">' + escHtml(item.name) + '</span>' +
-          '<span class="action-desc">' + escHtml(item.desc) + '</span>' +
-        '</div>' +
-        '<span class="action-cost">$' + cost + '</span>';
-      btn.onclick = (function(id) {
-        return function() { actionOrderFood(id); };
-      })(item.id);
-      foodEl.appendChild(btn);
+      (function(item) {
+        var cost = getFoodCost(item);
+        var buffActive = !!(item.buff && foodSpeedPerk);
+        var disabledReason = orderedToday ? 'Ordered today — come back tomorrow'
+          : buffActive ? 'Buff active (' + foodSpeedPerk.daysLeft + 'd left)'
+          : '';
+        var btn = document.createElement('button');
+        btn.className = 'action-btn';
+        btn.disabled = G.cash < cost || orderedToday || buffActive;
+        btn.innerHTML =
+          '<div>' +
+            '<span class="action-name">' + escHtml(item.name) + '</span>' +
+            '<span class="action-desc">' + escHtml(disabledReason || item.desc) + '</span>' +
+          '</div>' +
+          '<span class="action-cost">$' + cost + '</span>';
+        btn.onclick = function() { actionOrderFood(item.id); };
+        foodEl.appendChild(btn);
+      })(FOOD_ITEMS[i]);
     }
 
     // Upgrades (now cost AP and are pricier)
@@ -915,6 +963,7 @@ var UI = {
             G.cash -= upgrade.cost;
             spendAP(upgrade.apCost);
             G.upgrades.push(upgrade.id);
+            recordTransaction('expense', 'upgrade', upgrade.cost, 'Upgrade: ' + upgrade.name);
             addLog('Purchased: ' + upgrade.name + '!', 'good');
             if (upgrade.id === 'office_perks') {
               for (var k = 0; k < G.team.length; k++) {
@@ -1033,8 +1082,8 @@ var UI = {
     var card = document.createElement('div');
     card.className = 'project-card';
 
-    var statusColor = { developing: 'var(--amber)', live: 'var(--green)', dead: 'var(--red)' };
-    var statusLabel = { developing: 'DEVELOPING', live: 'LIVE', dead: 'DEAD' };
+    var statusColor = { greenlight: 'var(--amber)', building: 'var(--cyan)', live: 'var(--green)', dead: 'var(--red)' };
+    var statusLabel = { greenlight: 'GREENLIGHT', building: 'BUILDING', live: 'LIVE', dead: 'DEAD' };
 
     var assignedNames = [];
     if (product.assignedTeam) {
@@ -1048,10 +1097,18 @@ var UI = {
       ? '<div class="project-assigned">Team: ' + escHtml(assignedNames.join(', ')) + '</div>'
       : '<div class="project-assigned" style="color:var(--amber)">No team assigned — quality decaying!</div>';
 
-    var progressHtml = product.status === 'developing'
-      ? '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + Math.round(product.progress) + '%"></div></div>' +
-        '<div class="project-meta">' + Math.round(product.progress) + '% developed</div>'
-      : '';
+    var progressHtml = '';
+    if (product.status === 'greenlight') {
+      var glPct = Math.round(((product.apInvested || 0) / (product.apRequired || 12)) * 100);
+      progressHtml =
+        '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + glPct + '%;background:var(--amber)"></div></div>' +
+        '<div class="project-meta">Greenlight: ' + (product.apInvested || 0) + ' / ' + (product.apRequired || 12) + ' AP</div>';
+    } else if (product.status === 'building') {
+      var bldPct = Math.round(((product.devDaysWorked || 0) / (product.devDaysRequired || 1)) * 100);
+      progressHtml =
+        '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + bldPct + '%;background:var(--cyan)"></div></div>' +
+        '<div class="project-meta">Building: ' + (product.devDaysWorked || 0) + ' / ' + (product.devDaysRequired || 1) + ' dev days</div>';
+    }
 
     var qualityHtml = product.status === 'live'
       ? '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + Math.round(product.quality) + '%;background:' + (product.quality > 60 ? 'var(--green)' : product.quality > 30 ? 'var(--amber)' : 'var(--red)') + '"></div></div>' +
@@ -1082,7 +1139,16 @@ var UI = {
       };
       actionsRow.appendChild(btnA);
 
-      if (product.status === 'developing') {
+      if (product.status === 'greenlight') {
+        var btnInvest = document.createElement('button');
+        btnInvest.className = 'btn btn-primary btn-small';
+        btnInvest.textContent = 'INVEST AP (1 AP) — ' + (product.apInvested || 0) + '/' + (product.apRequired || 12);
+        btnInvest.disabled = !canAct(1);
+        btnInvest.onclick = (function(id) { return function(e) { e.stopPropagation(); actionInvestInProduct(id); }; })(product.id);
+        actionsDropdown.appendChild(btnInvest);
+      }
+
+      if (product.status === 'building') {
         var btnWork = document.createElement('button');
         btnWork.className = 'btn btn-primary btn-small';
         btnWork.textContent = 'WORK MYSELF (1 AP)';
@@ -1409,7 +1475,7 @@ function showCompanyModal() {
     }
   }
 
-  // Project history (last 15)
+  // Project history (last 15) — clickable to expand details
   var projHistoryHtml = '';
   if (G.completedProjects.length === 0) {
     projHistoryHtml = '<div class="empty-state" style="font-size:0.75rem;">No projects completed yet.</div>';
@@ -1417,10 +1483,17 @@ function showCompanyModal() {
     var showProjs = G.completedProjects.slice().reverse().slice(0, 15);
     for (var pi = 0; pi < showProjs.length; pi++) {
       var pr = showProjs[pi];
+      var teamStr = pr.workerNames && pr.workerNames.length ? pr.workerNames.join(', ') : 'Solo';
       projHistoryHtml +=
-        '<div class="negotiation-row">' +
-          '<span>' + escHtml(pr.client) + ' — ' + escHtml(pr.name) + '</span>' +
-          '<span style="color:var(--green)">$' + pr.payout.toLocaleString() + '</span>' +
+        '<div class="company-project-row" style="cursor:pointer;" onclick="this.querySelector(\'.company-project-detail\').style.display=this.querySelector(\'.company-project-detail\').style.display===\'none\'?\'block\':\'none\'">' +
+          '<div style="display:flex;justify-content:space-between;">' +
+            '<span>' + escHtml(pr.client) + ' \u2014 ' + escHtml(pr.name) + '</span>' +
+            '<span style="color:var(--green)">$' + pr.payout.toLocaleString() + '</span>' +
+          '</div>' +
+          '<div class="company-project-detail" style="display:none;font-size:0.7rem;color:var(--grey-light);margin-top:0.3rem;">' +
+            'Rep: +' + (pr.repGained || pr.repGain || '?') + ' | Outcome: ' + escHtml(pr.happinessLabel || 'Delivered') +
+            '<br>Team: ' + escHtml(teamStr) + ' | Extensions: ' + (pr.deadlineExtensions || 0) +
+          '</div>' +
         '</div>';
     }
   }
