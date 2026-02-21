@@ -111,15 +111,21 @@ var AvatarGen = (function() {
     [1,8,2,2,2,2,2,2,8,1],
   ];
 
-  function getSprite(gender, nameHash) {
-    var variant = nameHash % 3;
-    if (gender === 'female') {
+  function getSkinFromName(name) {
+    var parts = name.split(' ');
+    var lastName = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+    var eth = LAST_NAME_ETH[lastName] || 'european';
+    return (SKIN[eth] || SKIN.european)[0];
+  }
+
+  function getSpriteForStyle(spriteStyle, hairVariant) {
+    if (spriteStyle === 'b') {
       var s = FEMALE_BASE.map(function(r) { return r.slice(); });
-      if (variant === 1) {
+      if (hairVariant === 1) {
         s[0] = FEMALE_HAIR_V2[0].slice();
         s[1] = FEMALE_HAIR_V2[1].slice();
         s[2] = FEMALE_HAIR_V2[2].slice();
-      } else if (variant === 2) {
+      } else if (hairVariant === 2) {
         s[0] = FEMALE_HAIR_V3[0].slice();
         s[1] = FEMALE_HAIR_V3[1].slice();
         s[2] = FEMALE_HAIR_V3[2].slice();
@@ -127,10 +133,10 @@ var AvatarGen = (function() {
       return s;
     } else {
       var s2 = MALE_BASE.map(function(r) { return r.slice(); });
-      if (variant === 1) {
+      if (hairVariant === 1) {
         s2[0] = MALE_HAIR_V2[0].slice();
         s2[1] = MALE_HAIR_V2[1].slice();
-      } else if (variant === 2) {
+      } else if (hairVariant === 2) {
         s2[0] = MALE_HAIR_V3[0].slice();
         s2[1] = MALE_HAIR_V3[1].slice();
       }
@@ -138,34 +144,43 @@ var AvatarGen = (function() {
     }
   }
 
+  // Keep legacy function for backwards compatibility
+  function getSprite(gender, nameHash) {
+    var spriteStyle = (gender === 'female') ? 'b' : 'a';
+    return getSpriteForStyle(spriteStyle, nameHash % 3);
+  }
+
   function generate(person, scale) {
     scale = scale || 3;
     var name = person.name || 'Unknown';
-    var parts = name.split(' ');
-    var lastName = parts.length > 1 ? parts[parts.length - 1] : parts[0];
-    var gender = person.gender || 'male';
     var roleId = person.role ? (typeof person.role === 'string' ? person.role : person.role.id) : 'developer';
 
     var h = hash(name);
-    var eth = LAST_NAME_ETH[lastName] || 'european';
-    var skinColors = SKIN[eth] || SKIN.european;
-    var hairColor = HAIR_COLORS[h % HAIR_COLORS.length];
-    var hairShadow = HAIR_COLORS[(h + 3) % HAIR_COLORS.length];
-    var shirtColor = ROLE_SHIRT[roleId] || '#2D6B2D';
+
+    // Sprite style: 'b' = female sprite, 'a' = male sprite; legacy gender field also supported
+    var spriteStyle = person.spriteStyle || (person.gender === 'female' ? 'b' : 'a');
+    // Hair variant: direct index override (0/1/2) takes priority, else use name hash
+    var hairVariant = (person.hairStyle !== undefined) ? (person.hairStyle % 3) : (h % 3);
+    // Colors: direct overrides take priority, else compute from name
+    var hairColor  = person.hairColor  || HAIR_COLORS[h % HAIR_COLORS.length];
+    var hairShadow = person.hairColor  || HAIR_COLORS[(h + 3) % HAIR_COLORS.length];
+    var skinColor  = person.skinColor  || getSkinFromName(name);
+    var shirtColor = person.shirtColor || ROLE_SHIRT[roleId] || '#2D6B2D';
+    var pantsColor = person.pantsColor || '#1a1a3e';
 
     var palette = {
       0: null,
       1: hairColor,
-      2: skinColors[0],
+      2: skinColor,
       3: '#111111',
       4: '#CC6666',
       5: shirtColor,
-      6: '#1a1a3e',
+      6: pantsColor,
       7: '#111111',
       8: hairShadow,
     };
 
-    var sprite = getSprite(gender, h);
+    var sprite = getSpriteForStyle(spriteStyle, hairVariant);
 
     var canvas = document.createElement('canvas');
     canvas.width = 10 * scale;

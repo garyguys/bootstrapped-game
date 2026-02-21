@@ -7,9 +7,11 @@ var DAYS_OF_WEEK = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 var STAGES = [
   { id: 'freelancer',  name: 'Freelancer',      icon: '' },
   { id: 'home_office', name: 'Home Office',      icon: '' },
-  { id: 'micro',       name: 'Micro Agency',     icon: '' },
-  { id: 'boutique',    name: 'Boutique Studio',  icon: '' },
-  { id: 'scaleup',     name: 'Scale-Up',         icon: '' },
+  { id: 'startup',     name: 'Startup',          icon: '' },
+  { id: 'seed_stage',  name: 'Seed Stage',       icon: '' },
+  { id: 'series_a',    name: 'Series A',         icon: '' },
+  { id: 'growth',      name: 'Growth Company',   icon: '' },
+  { id: 'enterprise',  name: 'Enterprise',       icon: '' },
   { id: 'leader',      name: 'Market Leader',    icon: '' },
 ];
 
@@ -24,10 +26,15 @@ function createDefaultState() {
     player: {
       name: 'Founder',
       companyName: 'My Startup',
-      gender: 'male',
-      technical: 2,
-      communication: 2,
-      reliability: 2,
+      spriteStyle: 'a',        // 'a' (male sprite) or 'b' (female sprite)
+      hairStyle: 0,            // 0, 1, 2 — sprite hair variant
+      hairColor: '#5C3A1E',    // hex
+      skinColor: '#F5D5B8',    // hex
+      shirtColor: '#2D5FA0',   // hex
+      pantsColor: '#1a1a3e',   // hex
+      technical: 0,
+      communication: 0,
+      reliability: 0,
     },
 
     // Resources

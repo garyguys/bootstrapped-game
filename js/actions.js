@@ -147,6 +147,10 @@ function actionClientCall(projectId) {
 
 function actionPostJob() {
   if (!canAct(AP_COSTS.post_job)) return;
+  if (G.stage === 'freelancer') {
+    addLog('You\'re solo for now. Reach Home Office stage (25 rep) to start hiring.', 'warn');
+    return;
+  }
   if (G.jobPosted) {
     addLog('You already have a job posting active.', 'warn');
     return;
@@ -603,9 +607,10 @@ function getDashboardActions() {
   // Press Release
   var pressCD = 14;
   var pressAvail = (G.day - (G.lastPressReleaseDay || -99)) >= pressCD;
-  var pressStageCosts = { freelancer: 500, home_office: 800, micro: 1500, boutique: 4000, scaleup: 10000, leader: 25000 };
+  var pressStageCosts = { freelancer: 500, home_office: 800, startup: 1500, seed_stage: 3000, series_a: 6000, growth: 12000, enterprise: 20000, leader: 40000 };
   var pressCost = pressStageCosts[G.stage] || 500;
-  var pressRepGain = G.stage === 'freelancer' ? 5 : G.stage === 'home_office' ? 7 : G.stage === 'micro' ? 9 : G.stage === 'boutique' ? 11 : 15;
+  var pressRepGain = { freelancer: 5, home_office: 7, startup: 9, seed_stage: 11, series_a: 13, growth: 15, enterprise: 18, leader: 22 }[G.stage] || 5;
+  var pressAPCost = (G.upgrades && G.upgrades.indexOf('recording_studio') !== -1) ? 0 : 1;
   if (pressAvail) {
     actions.push({
       id: 'press_release',
@@ -692,18 +697,20 @@ function getDashboardActions() {
 
 // --- Action: Press Release ---
 function actionPressRelease() {
-  if (!canAct(1)) return;
-  var pressStageCosts = { freelancer: 500, home_office: 800, micro: 1500, boutique: 4000, scaleup: 10000, leader: 25000 };
+  var pressAPCost = (G.upgrades && G.upgrades.indexOf('recording_studio') !== -1) ? 0 : 1;
+  if (!canAct(pressAPCost)) return;
+  var pressStageCosts = { freelancer: 500, home_office: 800, startup: 1500, seed_stage: 3000, series_a: 6000, growth: 12000, enterprise: 20000, leader: 40000 };
   var cost = pressStageCosts[G.stage] || 500;
   if (G.cash < cost) {
     addLog('Can\'t afford a press release. Need $' + cost.toLocaleString() + '.', 'bad');
     return;
   }
-  var repGain = G.stage === 'freelancer' ? 5 : G.stage === 'home_office' ? 7 : G.stage === 'micro' ? 9 : G.stage === 'boutique' ? 11 : 15;
+  var pressRepGain = { freelancer: 5, home_office: 7, startup: 9, seed_stage: 11, series_a: 13, growth: 15, enterprise: 18, leader: 22 };
+  var repGain = pressRepGain[G.stage] || 5;
   G.cash -= cost;
   G.reputation += repGain;
   G.lastPressReleaseDay = G.day;
-  spendAP(1);
+  spendAP(pressAPCost);
   addLog('Press release issued! +' + repGain + ' rep. -$' + cost.toLocaleString() + '.', 'good');
   confirmThenAfterAction('Press release out! +' + repGain + ' rep.', 'good');
 }

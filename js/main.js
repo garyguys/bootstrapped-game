@@ -5,6 +5,169 @@
 
 (function() {
 
+  // Character creation color palettes
+  var CC_HAIR = [
+    '#1a1a2e', '#2d1b0e', '#4a2c0a', '#8B4513', '#654321',
+    '#2c1608', '#3d2b1f', '#5c3317', '#704214', '#d4a017',
+    '#c0c0c0', '#e87070',
+  ];
+  var CC_SKIN = [
+    '#FDDBB4', '#F5D5B8', '#D4A574', '#C6956A', '#C08850', '#8D5524',
+  ];
+  var CC_SHIRT = [
+    '#2D5FA0', '#2D6B2D', '#6B2D6B', '#8B2020', '#B8860B',
+    '#2D6B6B', '#6B3D2D', '#1a1a3e',
+  ];
+  var CC_PANTS = [
+    '#1a1a3e', '#2d2d2d', '#1a3e2d', '#3e1a1a', '#2d3a1a',
+  ];
+
+  // Current state of character creation form
+  var cc = {
+    spriteStyle: 'a',
+    hairStyle: 0,
+    hairColor: CC_HAIR[0],
+    skinColor: CC_SKIN[0],
+    shirtColor: CC_SHIRT[0],
+    pantsColor: CC_PANTS[0],
+    technical: 0,
+    communication: 0,
+    reliability: 0,
+  };
+
+  var SKILL_POOL = 8;
+
+  function updateAvatarPreview() {
+    var canvas = document.getElementById('create-avatar-preview');
+    if (!canvas) return;
+    var previewState = {
+      name: 'Preview',
+      spriteStyle: cc.spriteStyle,
+      hairStyle: cc.hairStyle,
+      hairColor: cc.hairColor,
+      skinColor: cc.skinColor,
+      shirtColor: cc.shirtColor,
+      pantsColor: cc.pantsColor,
+    };
+    var generated = AvatarGen.generate(previewState, 6);
+    canvas.width = generated.width;
+    canvas.height = generated.height;
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(generated, 0, 0);
+    canvas.style.imageRendering = 'pixelated';
+  }
+
+  function buildSwatches(containerId, colors, getCurrent, onSelect) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = '';
+    for (var i = 0; i < colors.length; i++) {
+      (function(color) {
+        var swatch = document.createElement('button');
+        swatch.className = 'color-swatch' + (getCurrent() === color ? ' selected' : '');
+        swatch.style.background = color;
+        swatch.title = color;
+        swatch.onclick = function() {
+          onSelect(color);
+          buildSwatches(containerId, colors, getCurrent, onSelect);
+          updateAvatarPreview();
+        };
+        el.appendChild(swatch);
+      })(colors[i]);
+    }
+  }
+
+  function updateSkillDisplay() {
+    var used = cc.technical + cc.communication + cc.reliability;
+    var left = SKILL_POOL - used;
+    var badge = document.getElementById('skill-points-left');
+    if (badge) badge.textContent = left + ' pts';
+    document.getElementById('tec-val').textContent = cc.technical;
+    document.getElementById('com-val').textContent = cc.communication;
+    document.getElementById('rel-val').textContent = cc.reliability;
+    document.getElementById('tec-plus').disabled = left === 0 || cc.technical >= 8;
+    document.getElementById('com-plus').disabled = left === 0 || cc.communication >= 8;
+    document.getElementById('rel-plus').disabled = left === 0 || cc.reliability >= 8;
+    document.getElementById('tec-minus').disabled = cc.technical === 0;
+    document.getElementById('com-minus').disabled = cc.communication === 0;
+    document.getElementById('rel-minus').disabled = cc.reliability === 0;
+  }
+
+  var spriteStyles = ['a', 'b'];
+  var spriteNames  = ['Style A', 'Style B'];
+
+  function initCharacterCreation() {
+    // Reset cc state
+    cc.spriteStyle   = 'a';
+    cc.hairStyle     = 0;
+    cc.hairColor     = CC_HAIR[0];
+    cc.skinColor     = CC_SKIN[0];
+    cc.shirtColor    = CC_SHIRT[0];
+    cc.pantsColor    = CC_PANTS[0];
+    cc.technical     = 0;
+    cc.communication = 0;
+    cc.reliability   = 0;
+
+    document.getElementById('sprite-label').textContent = 'Style A';
+    document.getElementById('hair-label').textContent   = 'Hair 1';
+
+    // Sprite picker
+    document.getElementById('sprite-prev').onclick = function() {
+      var idx = spriteStyles.indexOf(cc.spriteStyle);
+      cc.spriteStyle = spriteStyles[(idx + spriteStyles.length - 1) % spriteStyles.length];
+      document.getElementById('sprite-label').textContent = spriteNames[spriteStyles.indexOf(cc.spriteStyle)];
+      updateAvatarPreview();
+    };
+    document.getElementById('sprite-next').onclick = function() {
+      var idx = spriteStyles.indexOf(cc.spriteStyle);
+      cc.spriteStyle = spriteStyles[(idx + 1) % spriteStyles.length];
+      document.getElementById('sprite-label').textContent = spriteNames[spriteStyles.indexOf(cc.spriteStyle)];
+      updateAvatarPreview();
+    };
+
+    // Hair style picker
+    document.getElementById('hair-prev').onclick = function() {
+      cc.hairStyle = (cc.hairStyle + 2) % 3;
+      document.getElementById('hair-label').textContent = 'Hair ' + (cc.hairStyle + 1);
+      updateAvatarPreview();
+    };
+    document.getElementById('hair-next').onclick = function() {
+      cc.hairStyle = (cc.hairStyle + 1) % 3;
+      document.getElementById('hair-label').textContent = 'Hair ' + (cc.hairStyle + 1);
+      updateAvatarPreview();
+    };
+
+    // Color swatches
+    buildSwatches('swatch-hair',  CC_HAIR,  function() { return cc.hairColor;  }, function(c) { cc.hairColor  = c; });
+    buildSwatches('swatch-skin',  CC_SKIN,  function() { return cc.skinColor;  }, function(c) { cc.skinColor  = c; });
+    buildSwatches('swatch-shirt', CC_SHIRT, function() { return cc.shirtColor; }, function(c) { cc.shirtColor = c; });
+    buildSwatches('swatch-pants', CC_PANTS, function() { return cc.pantsColor; }, function(c) { cc.pantsColor = c; });
+
+    // Skill buttons
+    document.getElementById('tec-plus').onclick  = function() {
+      if (cc.technical < 8 && cc.technical + cc.communication + cc.reliability < SKILL_POOL) { cc.technical++;    updateSkillDisplay(); }
+    };
+    document.getElementById('tec-minus').onclick = function() {
+      if (cc.technical > 0)    { cc.technical--;    updateSkillDisplay(); }
+    };
+    document.getElementById('com-plus').onclick  = function() {
+      if (cc.communication < 8 && cc.technical + cc.communication + cc.reliability < SKILL_POOL) { cc.communication++; updateSkillDisplay(); }
+    };
+    document.getElementById('com-minus').onclick = function() {
+      if (cc.communication > 0) { cc.communication--; updateSkillDisplay(); }
+    };
+    document.getElementById('rel-plus').onclick  = function() {
+      if (cc.reliability < 8 && cc.technical + cc.communication + cc.reliability < SKILL_POOL) { cc.reliability++;   updateSkillDisplay(); }
+    };
+    document.getElementById('rel-minus').onclick = function() {
+      if (cc.reliability > 0)   { cc.reliability--;   updateSkillDisplay(); }
+    };
+
+    updateSkillDisplay();
+    updateAvatarPreview();
+  }
+
   function showScreen(screenId) {
     var screens = document.querySelectorAll('.screen');
     for (var i = 0; i < screens.length; i++) {
@@ -16,25 +179,31 @@
 
   function showCharacterCreation() {
     showScreen('screen-create');
+    initCharacterCreation();
   }
 
   function startGameWithCharacter() {
     var nameInput = document.getElementById('create-player-name');
     var compInput = document.getElementById('create-company-name');
-    var genderSelect = document.getElementById('create-gender');
-
-    var playerName = (nameInput.value || '').trim() || 'Founder';
-    var companyName = (compInput.value || '').trim() || 'My Startup';
-    var gender = genderSelect ? genderSelect.value : 'male';
+    var playerName  = (nameInput ? nameInput.value : '').trim() || 'Founder';
+    var companyName = (compInput ? compInput.value : '').trim() || 'My Startup';
 
     G = createDefaultState();
     deleteSave();
 
-    G.player.name = playerName;
-    G.player.companyName = companyName;
-    G.player.gender = gender;
+    G.player.name          = playerName;
+    G.player.companyName   = companyName;
+    G.player.spriteStyle   = cc.spriteStyle;
+    G.player.hairStyle     = cc.hairStyle;
+    G.player.hairColor     = cc.hairColor;
+    G.player.skinColor     = cc.skinColor;
+    G.player.shirtColor    = cc.shirtColor;
+    G.player.pantsColor    = cc.pantsColor;
+    G.player.technical     = cc.technical;
+    G.player.communication = cc.communication;
+    G.player.reliability   = cc.reliability;
 
-    generatePipelineLeads(true); // Guarantee startable project on day 1
+    generatePipelineLeads(true);
     initMarket();
 
     addLog('Day 1 (MON) \u2014 ' + playerName + ' quit their job. $500 in the bank. Let\'s build ' + companyName + '.', 'info');

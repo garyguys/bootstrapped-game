@@ -45,9 +45,10 @@ function generateClientName() {
 function generateProject() {
   var maxComplexity = 1.5;
   if (G.stage === 'home_office') maxComplexity = 2;
-  else if (G.stage === 'micro') maxComplexity = 3;
-  else if (G.stage === 'boutique') maxComplexity = 4;
-  else if (G.stage === 'scaleup' || G.stage === 'leader') maxComplexity = 5;
+  else if (G.stage === 'startup')    maxComplexity = 2.5;
+  else if (G.stage === 'seed_stage') maxComplexity = 3;
+  else if (G.stage === 'series_a')   maxComplexity = 4;
+  else if (G.stage === 'growth' || G.stage === 'enterprise' || G.stage === 'leader') maxComplexity = 5;
 
   var available = PROJECT_TEMPLATES.filter(function(t) {
     return t.complexity <= maxComplexity && G.reputation >= t.minRep;
@@ -154,14 +155,9 @@ function workOnProject(projectId) {
   }
   if (!project) return false;
 
-  if (project.complexity > 1.5) {
-    addLog('This project is too complex to work on solo.', 'bad');
-    return false;
-  }
-
   // Player technical skill affects progress (now 1-10 scale)
-  var playerTech = G.player ? G.player.technical : 2;
-  var advance = 15 + (playerTech * 2); // 19% at TEC 2, 35% at TEC 10
+  var playerTech = G.player ? G.player.technical : 0;
+  var advance = 15 + (playerTech * 2); // 15% at TEC 0, 35% at TEC 10
   if (G.upgrades.indexOf('second_monitor') !== -1) {
     advance = Math.round(advance * 1.2);
   }
@@ -171,7 +167,11 @@ function workOnProject(projectId) {
 
   project.progress = Math.min(100, project.progress + advance);
   project.founderWorking = true;
-  addLog('Worked on ' + project.name + ' — ' + Math.round(project.progress) + '% complete', 'good');
+  if (project.complexity > 2) {
+    addLog('Worked on ' + project.name + ' — complex project, solo progress is slow. ' + Math.round(project.progress) + '%', 'good');
+  } else {
+    addLog('Worked on ' + project.name + ' — ' + Math.round(project.progress) + '% complete', 'good');
+  }
   return true;
 }
 
@@ -192,6 +192,12 @@ function advanceProjects() {
         addLog(p.name + ' for ' + p.client + ' is OVERDUE! Reputation at risk.', 'bad');
       }
     }
+  }
+
+  // Automation Tools upgrade: random active project gets +5% progress daily
+  if (G.upgrades && G.upgrades.indexOf('automation_tools') !== -1 && G.activeProjects.length > 0) {
+    var idx = Math.floor(Math.random() * G.activeProjects.length);
+    G.activeProjects[idx].progress = Math.min(100, G.activeProjects[idx].progress + 5);
   }
 }
 
@@ -276,9 +282,6 @@ function checkProjectDeliveries() {
       var emp = G.team[k];
       if (d.assignedTeam && d.assignedTeam.indexOf(emp.id) !== -1) {
         workerNames.push(emp.name);
-        // Add to work history
-        emp.workHistory = emp.workHistory || [];
-        emp.workHistory.push({ company: d.client + ' (Project)', role: emp.role.id, years: 0 });
       }
       if (emp.assignedProjectId === d.id) {
         emp.assignedProjectId = null;
@@ -299,6 +302,19 @@ function checkProjectDeliveries() {
     } else if (roll < 0.2) {
       outcomeEvent = d.client + ' asked for a follow-up project!';
       if (G.pipeline.length < 5) G.pipeline.push(generateProject());
+    }
+
+    // Sales assigned — 25% chance of scope expansion bonus
+    if (d._hasSalesAssigned && Math.random() < 0.25) {
+      var salesBonus = randomInt(200, 600);
+      payout += salesBonus;
+      G.cash += salesBonus;
+      if (!outcomeEvent) outcomeEvent = d.client + ' approved a scope expansion! +$' + salesBonus + ' bonus.';
+    }
+
+    // Marketer assigned — +3 rep bonus
+    if (d._hasMarketerAssigned) {
+      repGain += 3;
     }
 
     // Track client lifetime value
@@ -475,6 +491,7 @@ function tickProducts() {
       // Daily revenue
       if (p.quality > 0) {
         var revenue = Math.round((p.quality / 100) * (p.marketInterest / 100) * p.maxRevenue);
+        if (G.upgrades && G.upgrades.indexOf('server_farm') !== -1) revenue = Math.round(revenue * 1.25);
         G.cash += revenue;
         G.totalRevenue += revenue;
         p.totalRevenue += revenue;

@@ -365,19 +365,19 @@ var UI = {
     var choices = document.getElementById('event-modal-choices');
 
     title.textContent = 'ASSIGN TEAM TO ' + project.name;
-    desc.textContent = 'Select team members to work on this project. Only developers, designers, and devops contribute to progress.';
+    desc.textContent = 'Any team member can contribute. Devs/Designers lead progress. Sales boosts payout. Marketing boosts rep on delivery.';
     choices.innerHTML = '';
 
-    var devRoles = ['developer', 'designer', 'devops'];
+    var roleLabels = { developer: 'DEV', designer: 'DES', devops: 'OPS', pm: 'PM', sales: 'SAL', marketer: 'MKT' };
 
     for (var i = 0; i < G.team.length; i++) {
       var emp = G.team[i];
-      if (devRoles.indexOf(emp.role.id) === -1) continue;
 
       var isAssigned = project.assignedTeam && project.assignedTeam.indexOf(emp.id) !== -1;
+      var roleLabel = roleLabels[emp.role.id] || emp.role.id.toUpperCase().slice(0, 3);
       var btn = document.createElement('button');
       btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
-      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' (TEC:' + emp.technical + ')';
+      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' [' + roleLabel + '] TEC:' + emp.technical;
       btn.onclick = (function(empId, projId, assigned) {
         return function() {
           if (assigned) {
@@ -882,16 +882,22 @@ var UI = {
     upgradesEl.innerHTML = '';
 
     var UPGRADES = [
-      { id: 'coffee_machine',   name: 'Coffee Machine',    cost: 2500,  apCost: 1, desc: '+10 energy every morning', oneTime: true },
-      { id: 'ping_pong',        name: 'Ping Pong Table',   cost: 3500,  apCost: 1, desc: '+5 energy recovery when sleeping', oneTime: true },
-      { id: 'second_monitor',   name: 'Second Monitor',    cost: 4000,  apCost: 1, desc: 'Founder work 20% faster',  oneTime: true },
-      { id: 'premium_software', name: 'Premium Software',  cost: 5500,  apCost: 1, desc: '+5% project progress for all', oneTime: true },
-      { id: 'office_perks',     name: 'Office Perks',      cost: 8000,  apCost: 2, desc: '+15 loyalty for all staff', oneTime: true },
-      { id: 'standing_desk',    name: 'Standing Desk',     cost: 12000, apCost: 1, desc: '+1 AP per day',            oneTime: true },
+      // Tier 1
+      { id: 'coffee_machine',   name: 'Coffee Machine',        cost: 2500,  apCost: 1, desc: '+10 energy every morning',                         oneTime: true, tier: 1 },
+      { id: 'ping_pong',        name: 'Ping Pong Table',        cost: 3500,  apCost: 1, desc: '+5 energy recovery when sleeping',                 oneTime: true, tier: 1 },
+      { id: 'second_monitor',   name: 'Second Monitor',         cost: 4000,  apCost: 1, desc: 'Founder works 20% faster',                         oneTime: true, tier: 1 },
+      { id: 'premium_software', name: 'Premium Software',       cost: 5500,  apCost: 1, desc: '+5% project progress for all',                     oneTime: true, tier: 1 },
+      { id: 'office_perks',     name: 'Office Perks',           cost: 8000,  apCost: 2, desc: '+15 loyalty for all staff',                        oneTime: true, tier: 1 },
+      { id: 'standing_desk',    name: 'Standing Desk',          cost: 12000, apCost: 1, desc: '+1 AP per day',                                    oneTime: true, tier: 1 },
+      // Tier 2 (visible only when prerequisite is owned)
+      { id: 'rooftop_terrace',  name: 'Rooftop Terrace',        cost: 22000, apCost: 2, desc: '+20 energy daily, +10 loyalty/week all staff',     oneTime: true, tier: 2, requires: 'ping_pong' },
+      { id: 'server_farm',      name: 'Dedicated Server Farm',  cost: 30000, apCost: 2, desc: 'Products generate 25% more revenue',               oneTime: true, tier: 2, requires: 'premium_software' },
+      { id: 'executive_suite',  name: 'Executive Suite',        cost: 45000, apCost: 2, desc: '+2 AP per day',                                    oneTime: true, tier: 2, requires: 'standing_desk' },
+      { id: 'automation_tools', name: 'Automation Tools',       cost: 38000, apCost: 2, desc: 'A random active project gains +5% progress/day',   oneTime: true, tier: 2, requires: 'second_monitor' },
+      { id: 'recording_studio', name: 'Recording Studio',       cost: 20000, apCost: 2, desc: 'Press releases cost 0 AP',                         oneTime: true, tier: 2, requires: 'office_perks' },
     ];
 
-    for (var j = 0; j < UPGRADES.length; j++) {
-      var u = UPGRADES[j];
+    function renderUpgradeBtn(u) {
       var owned = G.upgrades.indexOf(u.id) !== -1;
       var btn2 = document.createElement('button');
       btn2.className = 'action-btn';
@@ -901,8 +907,7 @@ var UI = {
           '<span class="action-name">' + escHtml(u.name) + (owned ? ' [OWNED]' : '') + '</span>' +
           '<span class="action-desc">' + escHtml(u.desc) + '</span>' +
         '</div>' +
-        '<span class="action-cost">$' + u.cost + ' &middot; ' + u.apCost + ' AP</span>';
-
+        '<span class="action-cost">$' + u.cost.toLocaleString() + ' &middot; ' + u.apCost + ' AP</span>';
       if (!owned) {
         btn2.onclick = (function(upgrade) {
           return function() {
@@ -922,7 +927,35 @@ var UI = {
           };
         })(u);
       }
-      upgradesEl.appendChild(btn2);
+      return btn2;
+    }
+
+    // Render Tier 1
+    var t1Header = document.createElement('div');
+    t1Header.className = 'shop-tier-header';
+    t1Header.textContent = 'OFFICE UPGRADES';
+    upgradesEl.appendChild(t1Header);
+    for (var j = 0; j < UPGRADES.length; j++) {
+      if (UPGRADES[j].tier === 1) upgradesEl.appendChild(renderUpgradeBtn(UPGRADES[j]));
+    }
+
+    // Render Tier 2 — only show if prerequisite owned
+    var anyTier2 = false;
+    for (var jt = 0; jt < UPGRADES.length; jt++) {
+      if (UPGRADES[jt].tier === 2 && G.upgrades.indexOf(UPGRADES[jt].requires) !== -1) { anyTier2 = true; break; }
+    }
+    if (anyTier2) {
+      var t2Header = document.createElement('div');
+      t2Header.className = 'shop-tier-header';
+      t2Header.style.marginTop = '14px';
+      t2Header.textContent = 'TIER 2 UPGRADES';
+      upgradesEl.appendChild(t2Header);
+      for (var jj = 0; jj < UPGRADES.length; jj++) {
+        var u2 = UPGRADES[jj];
+        if (u2.tier === 2 && G.upgrades.indexOf(u2.requires) !== -1) {
+          upgradesEl.appendChild(renderUpgradeBtn(u2));
+        }
+      }
     }
 
     // Training section
@@ -964,14 +997,14 @@ var UI = {
     if (!el) return;
     el.innerHTML = '';
 
-    var productStages = ['micro', 'boutique', 'scaleup', 'leader'];
+    var productStages = ['startup', 'seed_stage', 'series_a', 'growth', 'enterprise', 'leader'];
     var productsUnlocked = productStages.indexOf(G.stage) !== -1;
 
     if (!productsUnlocked) {
       var lockedMsg = document.createElement('div');
       lockedMsg.className = 'empty-state';
       lockedMsg.style.color = 'var(--grey)';
-      lockedMsg.textContent = 'PRODUCTS UNLOCKED AT MICRO STAGE — grow your company first.';
+      lockedMsg.textContent = 'PRODUCTS UNLOCKED AT STARTUP STAGE (75 rep) — grow your company first.';
       el.appendChild(lockedMsg);
       return;
     }
@@ -1193,9 +1226,9 @@ var UI = {
         '<div class="help-block">' +
           '<h3 class="help-heading">Projects</h3>' +
           '<div class="help-item"><span class="help-term">Pipeline</span> Available leads. Accept them (1 AP) before they expire in 3 days.</div>' +
-          '<div class="help-item"><span class="help-term">Complexity</span> Solo-able (≤1.5) can be worked by you directly. Higher needs team members.</div>' +
-          '<div class="help-item"><span class="help-term">Work Myself</span> Spend 1 AP to personally advance a solo project.</div>' +
-          '<div class="help-item"><span class="help-term">Assign Team</span> Assign devs/designers/devops to auto-advance projects daily.</div>' +
+          '<div class="help-item"><span class="help-term">Complexity</span> Higher complexity projects advance slower solo. Assign team members to speed things up.</div>' +
+          '<div class="help-item"><span class="help-term">Work Myself</span> Spend 1 AP to personally advance a project. TEC skill improves solo speed.</div>' +
+          '<div class="help-item"><span class="help-term">Assign Team</span> Any team member can be assigned. Devs/Devops lead progress; Sales/Marketing boost delivery bonuses.</div>' +
           '<div class="help-item"><span class="help-term">Deadline</span> Extend for -rep. 3+ days overdue risks client cancellation.</div>' +
         '</div>' +
         '<div class="help-block">' +
@@ -1221,12 +1254,14 @@ var UI = {
         '</div>' +
         '<div class="help-block">' +
           '<h3 class="help-heading">Stage Progression</h3>' +
-          '<div class="help-item"><span class="help-term">Freelancer</span> Day 1 start. Solo projects only.</div>' +
-          '<div class="help-item"><span class="help-term">Home Office</span> 5 rep. Can hire first employee.</div>' +
-          '<div class="help-item"><span class="help-term">Micro Agency</span> 30 rep. Larger team projects unlock. Can develop own products.</div>' +
-          '<div class="help-item"><span class="help-term">Boutique Studio</span> 70 rep. Complex projects unlock.</div>' +
-          '<div class="help-item"><span class="help-term">Scale-Up</span> 130 rep. Enterprise-level work available.</div>' +
-          '<div class="help-item"><span class="help-term">Market Leader</span> 500 rep = WIN.</div>' +
+          '<div class="help-item"><span class="help-term">Freelancer</span> Day 1 start. Solo projects only. Cannot post job listings.</div>' +
+          '<div class="help-item"><span class="help-term">Home Office</span> 25 rep. Can hire first employee. Post job listings.</div>' +
+          '<div class="help-item"><span class="help-term">Startup</span> 75 rep. Larger team projects. Products unlocked.</div>' +
+          '<div class="help-item"><span class="help-term">Seed Stage</span> 150 rep. Complex projects (complexity 3+) available.</div>' +
+          '<div class="help-item"><span class="help-term">Series A</span> 300 rep. High-value enterprise contracts appear.</div>' +
+          '<div class="help-item"><span class="help-term">Growth Company</span> 550 rep. Max complexity projects unlock.</div>' +
+          '<div class="help-item"><span class="help-term">Enterprise</span> 1000 rep. Final stretch — one stage from winning.</div>' +
+          '<div class="help-item"><span class="help-term">Market Leader</span> 2000 rep = WIN.</div>' +
         '</div>' +
         '<div class="help-block">' +
           '<h3 class="help-heading">Skill Colors</h3>' +

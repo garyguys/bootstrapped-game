@@ -226,7 +226,7 @@ var DAY_EVENTS = [
     weight: 2,
     getDonationCosts: function() {
       // Scale with stage
-      var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+      var stageMults = { freelancer: 1, home_office: 2.5, startup: 5, seed_stage: 10, series_a: 20, growth: 40, enterprise: 60, leader: 80 };
       var mult = stageMults[G.stage] || 1;
       var large = Math.round(randomInt(100, 250) * mult / 50) * 50;
       var small = Math.round(randomInt(30, 80) * mult / 50) * 50;
@@ -234,12 +234,12 @@ var DAY_EVENTS = [
     },
     choices: [
       { text: 'Large donation (+3 rep)', getCost: function() {
-        var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+        var stageMults = { freelancer: 1, home_office: 2.5, startup: 5, seed_stage: 10, series_a: 20, growth: 40, enterprise: 60, leader: 80 };
         var mult = stageMults[G.stage] || 1;
         return Math.round(randomInt(100, 250) * mult / 50) * 50;
       }, effect: function(project, cost) {
         if (!cost) {
-          var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+          var stageMults = { freelancer: 1, home_office: 2.5, startup: 5, seed_stage: 10, series_a: 20, growth: 40, enterprise: 60, leader: 80 };
           var mult = stageMults[G.stage] || 1;
           cost = Math.round(randomInt(100, 250) * mult / 50) * 50;
         }
@@ -249,12 +249,12 @@ var DAY_EVENTS = [
         return 'Donated $' + cost.toLocaleString() + ' to local tech community. +3 rep.';
       }, requires: function() { return G.cash >= 100; } },
       { text: 'Small contribution (+1 rep)', getCost: function() {
-        var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+        var stageMults = { freelancer: 1, home_office: 2.5, startup: 5, seed_stage: 10, series_a: 20, growth: 40, enterprise: 60, leader: 80 };
         var mult = stageMults[G.stage] || 1;
         return Math.round(randomInt(30, 80) * mult / 50) * 50;
       }, effect: function(project, cost) {
         if (!cost) {
-          var stageMults = { freelancer: 1, home_office: 2.5, micro: 6, boutique: 15, scaleup: 35, leader: 80 };
+          var stageMults = { freelancer: 1, home_office: 2.5, startup: 5, seed_stage: 10, series_a: 20, growth: 40, enterprise: 60, leader: 80 };
           var mult = stageMults[G.stage] || 1;
           cost = Math.round(randomInt(30, 80) * mult / 50) * 50;
         }
@@ -389,18 +389,18 @@ var DAY_EVENTS = [
     condition: function() { return G.cash >= 500; },
     weight: 2,
     getBillAmount: function() {
-      var stageMults = { freelancer: 1, home_office: 1.5, micro: 3, boutique: 7, scaleup: 15, leader: 30 };
+      var stageMults = { freelancer: 1, home_office: 1.5, startup: 3, seed_stage: 5, series_a: 8, growth: 15, enterprise: 22, leader: 30 };
       var mult = stageMults[G.stage] || 1;
       return Math.round(randomInt(200, 600) * mult / 50) * 50;
     },
     choices: [
       { text: 'Pay it (no drama)', getCost: function() {
-        var stageMults = { freelancer: 1, home_office: 1.5, micro: 3, boutique: 7, scaleup: 15, leader: 30 };
+        var stageMults = { freelancer: 1, home_office: 1.5, startup: 3, seed_stage: 5, series_a: 8, growth: 15, enterprise: 22, leader: 30 };
         var mult = stageMults[G.stage] || 1;
         return Math.round(randomInt(200, 600) * mult / 50) * 50;
       }, effect: function(project, cost) {
         if (!cost) {
-          var stageMults = { freelancer: 1, home_office: 1.5, micro: 3, boutique: 7, scaleup: 15, leader: 30 };
+          var stageMults = { freelancer: 1, home_office: 1.5, startup: 3, seed_stage: 5, series_a: 8, growth: 15, enterprise: 22, leader: 30 };
           var mult = stageMults[G.stage] || 1;
           cost = Math.round(randomInt(200, 600) * mult / 50) * 50;
         }
@@ -410,7 +410,7 @@ var DAY_EVENTS = [
       }, requires: function() { return G.cash >= 200; } },
       { text: 'Contest it (30% chance to avoid, else pay + $200 penalty)', effect: function(project, cost) {
         if (!cost) {
-          var stageMults = { freelancer: 1, home_office: 1.5, micro: 3, boutique: 7, scaleup: 15, leader: 30 };
+          var stageMults = { freelancer: 1, home_office: 1.5, startup: 3, seed_stage: 5, series_a: 8, growth: 15, enterprise: 22, leader: 30 };
           var mult = stageMults[G.stage] || 1;
           cost = Math.round(randomInt(200, 600) * mult / 50) * 50;
         }

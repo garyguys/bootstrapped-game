@@ -430,6 +430,13 @@ function tickTeam() {
     }
   }
 
+  // Rooftop terrace: +10 loyalty for all staff every 7 days
+  if (G.upgrades && G.upgrades.indexOf('rooftop_terrace') !== -1 && G.day % 7 === 0) {
+    for (var rt = 0; rt < G.team.length; rt++) {
+      G.team[rt].loyalty = Math.min(100, G.team[rt].loyalty + 10);
+    }
+  }
+
   for (var j = 0; j < quitters.length; j++) {
     var q = quitters[j];
     G.team = G.team.filter(function(e) { return e.id !== q.id; });
@@ -447,25 +454,41 @@ function tickTeam() {
 
 // Calculate team contribution to a specific project per day
 // Now uses assignment system — only assigned team members contribute
+// Role-based contribution multipliers — all roles can be assigned
+var ROLE_PROJECT_CONTRIB = {
+  developer: 2.5,   // primary technical contributor
+  designer:  2.0,   // strong contributor
+  devops:    2.0,   // strong contributor
+  pm:        0.5,   // manages process, minor direct contribution
+  sales:     0.5,   // minor contribution
+  marketer:  0.5,   // minor contribution
+};
+
 function getTeamProjectBonus(project) {
   var bonus = 0;
-  var devCount = 0;
+  var hasPM = false;
 
-  // Get assigned members or fall back to all devs/designers/devops
+  // Get assigned members only — no auto-advance without assignment
   var workers;
   if (project.assignedTeam && project.assignedTeam.length > 0) {
     workers = G.team.filter(function(emp) {
       return project.assignedTeam.indexOf(emp.id) !== -1;
     });
   } else {
-    // No team assigned — project does not auto-advance
     workers = [];
   }
 
+  // Track delivery flags for sales/marketer bonus at delivery time
+  var hasSales = false;
+  var hasMarketer = false;
+
   for (var i = 0; i < workers.length; i++) {
     var emp = workers[i];
-    if (emp.role.id !== 'developer' && emp.role.id !== 'designer' && emp.role.id !== 'devops') continue;
-    devCount++;
+    var roleMultiplier = ROLE_PROJECT_CONTRIB[emp.role.id] || 1.0;
+
+    if (emp.role.id === 'pm') hasPM = true;
+    if (emp.role.id === 'sales') hasSales = true;
+    if (emp.role.id === 'marketer') hasMarketer = true;
 
     // Flaky check
     if (emp.flaw && emp.flaw.id === 'flaky' && Math.random() < emp.flaw.value) continue;
@@ -474,8 +497,7 @@ function getTeamProjectBonus(project) {
     if (emp.flaw && emp.flaw.id === 'slow_starter' && emp.daysEmployed < emp.flaw.value) effectiveness = 0.5;
     if (emp.flaw && emp.flaw.id === 'secret_slacker') effectiveness *= emp.flaw.value;
 
-    // Base: technical * 2% per day (scaled for 1-10 system)
-    var contrib = emp.technical * 2 * effectiveness;
+    var contrib = emp.technical * roleMultiplier * effectiveness;
 
     if (emp.perk && emp.perk.id === 'night_owl') contrib += emp.perk.value;
     if (emp.perk && emp.perk.id === 'perfectionist') contrib *= 0.9;
@@ -483,8 +505,16 @@ function getTeamProjectBonus(project) {
     bonus += contrib;
   }
 
-  if (devCount >= 3) bonus *= 1.1;
-  if (devCount >= 5) bonus *= 1.05;
+  // PM coordination bonus: +10% to all other workers' output
+  if (hasPM && workers.length > 1) bonus *= 1.10;
+
+  // Team size bonus (all assigned workers count)
+  if (workers.length >= 3) bonus *= 1.1;
+  if (workers.length >= 5) bonus *= 1.05;
+
+  // Store delivery flags on project for checkProjectDeliveries to use
+  project._hasSalesAssigned = hasSales;
+  project._hasMarketerAssigned = hasMarketer;
 
   return bonus;
 }

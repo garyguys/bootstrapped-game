@@ -135,6 +135,7 @@ function endDaySilent() {
   G.energy = getSleepEnergyRecovery();
   if (G.upgrades.indexOf('coffee_machine') !== -1) G.energy = Math.min(G.energyMax, G.energy + 10);
   if (G.upgrades.indexOf('ping_pong') !== -1) G.energy = Math.min(G.energyMax, G.energy + 5);
+  if (G.upgrades.indexOf('rooftop_terrace') !== -1) G.energy = Math.min(G.energyMax, G.energy + 20);
   if (G.dayOfWeek >= 5) G.energy = Math.min(G.energyMax, G.energy + 10);
 
   if (G._openSourcePendingLead) {
@@ -180,6 +181,11 @@ function startNewDay() {
   // Ping pong table bonus
   if (G.upgrades.indexOf('ping_pong') !== -1) {
     G.energy = Math.min(G.energyMax, G.energy + 5);
+  }
+
+  // Rooftop terrace bonus
+  if (G.upgrades.indexOf('rooftop_terrace') !== -1) {
+    G.energy = Math.min(G.energyMax, G.energy + 20);
   }
 
   // Weekend rest bonus
@@ -250,6 +256,7 @@ function startNewDay() {
 
   saveGame();
   UI.renderAll();
+  UI.switchTab('dashboard');
 
   // Show project delivery popups
   if (G.deliveryQueue && G.deliveryQueue.length > 0) {
@@ -305,6 +312,7 @@ function showNextDeliveryPopup() {
 function getBaseAPMax() {
   var base = 4;
   if (G.upgrades.indexOf('standing_desk') !== -1) base += 1;
+  if (G.upgrades.indexOf('executive_suite') !== -1) base += 2;
   var opsCount = getOpsTeamCount();
   var opsBonus = Math.min(2, Math.floor(opsCount / 2));
   base += opsBonus;
@@ -379,15 +387,19 @@ function checkStageProgression() {
   if (G.gameOver || G.gameWon) return;
   var prev = G.stage;
 
-  if (G.stage === 'freelancer' && G.reputation >= 5) {
+  if (G.stage === 'freelancer' && G.reputation >= 25) {
     G.stage = 'home_office';
-  } else if (G.stage === 'home_office' && G.reputation >= 30) {
-    G.stage = 'micro';
-  } else if (G.stage === 'micro' && G.reputation >= 70) {
-    G.stage = 'boutique';
-  } else if (G.stage === 'boutique' && G.reputation >= 130) {
-    G.stage = 'scaleup';
-  } else if (G.stage === 'scaleup' && G.reputation >= 500) {
+  } else if (G.stage === 'home_office' && G.reputation >= 75) {
+    G.stage = 'startup';
+  } else if (G.stage === 'startup' && G.reputation >= 150) {
+    G.stage = 'seed_stage';
+  } else if (G.stage === 'seed_stage' && G.reputation >= 300) {
+    G.stage = 'series_a';
+  } else if (G.stage === 'series_a' && G.reputation >= 550) {
+    G.stage = 'growth';
+  } else if (G.stage === 'growth' && G.reputation >= 1000) {
+    G.stage = 'enterprise';
+  } else if (G.stage === 'enterprise' && G.reputation >= 2000) {
     G.stage = 'leader';
     G.gameWon = true;
   }
