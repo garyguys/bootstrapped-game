@@ -390,9 +390,10 @@ function actionOrderFood(foodId) {
   }
   if (!item) return;
 
-  // Once-per-day limit
-  if (G.lastFoodOrderDay >= G.day) {
-    addLog('Already had food today. Come back tomorrow.', 'warn');
+  // Per-item daily cooldown (v0.09: each food item once per day)
+  if (!G.foodPurchasedToday) G.foodPurchasedToday = {};
+  if (G.foodPurchasedToday[foodId] >= G.day) {
+    addLog('Already had ' + item.name + ' today. Try something else!', 'warn');
     return;
   }
 
@@ -409,7 +410,7 @@ function actionOrderFood(foodId) {
   }
 
   G.cash -= cost;
-  G.lastFoodOrderDay = G.day;
+  G.foodPurchasedToday[foodId] = G.day;
   recordTransaction('expense', 'food', cost, item.name);
   G.energy = Math.min(G.energyMax, G.energy + item.energy);
 
@@ -612,14 +613,10 @@ function showNegotiationModal(candidate) {
     updatePatienceBar(candidate);
 
     if (result.accepted) {
-      resultEl.className = 'negotiation-result text-green';
-      btnOffer.style.display = 'none';
-      btnAccept.style.display = 'none';
-      btnClose.textContent = 'HIRE';
-      btnClose.onclick = function() {
-        modal.style.display = 'none';
-        completeHire(candidate.id, offered);
-      };
+      // v0.09: Immediately close and hire — no extra HIRE click
+      modal.style.display = 'none';
+      completeHire(candidate.id, offered);
+      return;
     } else {
       resultEl.className = 'negotiation-result text-red';
     }
@@ -899,6 +896,28 @@ function actionDeclineLead(projectId) {
   G.pipeline.splice(idx, 1);
   addLog('Passed on ' + lead.name + ' from ' + lead.client + '.', 'info');
   UI.renderProjects();
+}
+
+// --- Action: Upgrade Own Product (v0.09) ---
+
+function actionUpgradeProduct(productId) {
+  if (!canAct(2)) return;
+  var product = G.ownedProducts.find(function(p) { return p.id === productId; });
+  if (!product || product.status !== 'live') return;
+
+  var scopes = ['small', 'medium', 'large', 'enterprise'];
+  var scopeIdx = scopes.indexOf(product.scope);
+  if (scopeIdx >= scopes.length - 1) {
+    addLog('"' + product.name + '" is already at enterprise scale.', 'warn');
+    return;
+  }
+
+  var success = upgradeOwnProduct(productId);
+  if (!success) return;
+
+  spendAP(2);
+  spendEnergy(ENERGY_COSTS.work_project);
+  confirmThenAfterAction('"' + product.name + '" upgraded to ' + scopes[scopeIdx + 1] + ' scale!', 'good');
 }
 
 // --- Action: Clear Completed Projects ---

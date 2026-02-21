@@ -471,10 +471,48 @@ select.create-input option {
   font-size: 0.7rem;
   color: var(--cyan-dim);
   letter-spacing: 0.05em;
-  max-width: 120px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.header-company-clickable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.header-company-clickable:hover {
+  color: var(--cyan);
+}
+
+.company-info-icon {
+  font-size: 0.55rem;
+  opacity: 0.7;
+  vertical-align: super;
+}
+
+.header-day-total {
+  font-size: 0.55rem;
+  color: var(--grey-light);
+  margin-top: -0.1rem;
+}
+
+.day-name {
+  color: var(--amber);
+}
+
+/* Rapport badge for repeat clients */
+.rapport-badge {
+  font-size: 0.6rem;
+  color: var(--green);
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid var(--green-dark);
+  padding: 0.05rem 0.3rem;
+  margin-left: 0.3rem;
+  font-weight: bold;
 }
 
 .header-cash {

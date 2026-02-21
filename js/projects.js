@@ -24,11 +24,23 @@ var PROJECT_TEMPLATES = [
   { name: 'Marketing Campaign',  payMin: 6000,  payMax: 10000, complexity: 3,  daysMin: 8,  daysMax: 14, repGain: 15, requiredRole: 'marketer',  minTeam: 2, minRep: 40 },
   { name: 'Security Audit',      payMin: 18000, payMax: 25000, complexity: 5,  daysMin: 22, daysMax: 35, repGain: 30, requiredRole: 'devops',    minTeam: 6, minRep: 120 },
   { name: 'White-Label Product', payMin: 20000, payMax: 30000, complexity: 5,  daysMin: 25, daysMax: 40, repGain: 35, requiredRole: 'developer', minTeam: 7, minRep: 150 },
+
+  // v0.09 additions
+  { name: 'Email Template Set',    payMin: 400,   payMax: 700,   complexity: 1,   daysMin: 2, daysMax: 3, repGain: 2,  requiredRole: null, minTeam: 0, minRep: 0 },
+  { name: 'SEO Optimization',      payMin: 900,   payMax: 1400,  complexity: 1,   daysMin: 3, daysMax: 4, repGain: 4,  requiredRole: null, minTeam: 0, minRep: 0 },
+  { name: 'Social Media Kit',      payMin: 700,   payMax: 1100,  complexity: 1.5, daysMin: 3, daysMax: 5, repGain: 4,  requiredRole: 'marketer', minTeam: 0, minRep: 0 },
+  { name: 'CRM Integration',       payMin: 2500,  payMax: 3800,  complexity: 2.5, daysMin: 6, daysMax: 9, repGain: 8,  requiredRole: 'developer', minTeam: 1, minRep: 10 },
+  { name: 'Analytics Dashboard',   payMin: 3000,  payMax: 4500,  complexity: 2.5, daysMin: 7, daysMax: 10, repGain: 10, requiredRole: 'developer', minTeam: 1, minRep: 15 },
+  { name: 'Design System',         payMin: 4000,  payMax: 6000,  complexity: 3,   daysMin: 10, daysMax: 15, repGain: 12, requiredRole: 'designer', minTeam: 2, minRep: 30 },
+  { name: 'Data Pipeline',         payMin: 12000, payMax: 18000, complexity: 4,   daysMin: 14, daysMax: 22, repGain: 18, requiredRole: 'devops', minTeam: 3, minRep: 60 },
+  { name: 'Microservices Rewrite', payMin: 22000, payMax: 35000, complexity: 5,   daysMin: 28, daysMax: 45, repGain: 32, requiredRole: 'developer', minTeam: 6, minRep: 130 },
 ];
 
 var CLIENT_FIRST = ['Acme', 'Bright', 'Core', 'Nova', 'Edge', 'Peak', 'Flux', 'Zen', 'Pixel', 'Bolt', 'Nexus', 'Atlas',
-                    'Lunar', 'Tide', 'Forge', 'Mint', 'Slate', 'Prism', 'Wren', 'Hive'];
-var CLIENT_LAST = ['Corp', 'Labs', 'Media', 'Tech', 'Studio', 'Digital', 'Co', 'Works', 'Group', 'HQ', 'AI', 'Ventures'];
+                    'Lunar', 'Tide', 'Forge', 'Mint', 'Slate', 'Prism', 'Wren', 'Hive',
+                    'Apex', 'Drift', 'Echo', 'Aura', 'Kite', 'Orca', 'Quill', 'Spark', 'Vibe', 'Zero'];
+var CLIENT_LAST = ['Corp', 'Labs', 'Media', 'Tech', 'Studio', 'Digital', 'Co', 'Works', 'Group', 'HQ', 'AI', 'Ventures',
+                   'Systems', 'Cloud', 'Solutions', 'IO', 'Industries'];
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -58,10 +70,19 @@ function generateProject() {
   var payout = randomInt(template.payMin, template.payMax);
   payout = Math.round(payout / 50) * 50;
 
+  // 40% chance to be a repeat client if we have past clients
+  var clientKeys = G.clients ? Object.keys(G.clients) : [];
+  var client;
+  if (clientKeys.length > 0 && Math.random() < 0.4) {
+    client = randomChoice(clientKeys);
+  } else {
+    client = generateClientName();
+  }
+
   return {
     id: G.nextProjectId++,
     name: template.name,
-    client: generateClientName(),
+    client: client,
     payout: payout,
     complexity: template.complexity,
     daysToComplete: randomInt(template.daysMin, template.daysMax),
@@ -209,8 +230,10 @@ function checkMissedDeadlines() {
     var overdueDays = p.daysActive - p.daysToComplete;
 
     if (overdueDays >= 3 && p.progress < 100) {
-      // 70% chance of cancellation, 30% chance client gives 3 more days
-      if (Math.random() < 0.70) {
+      // Rapport reduces cancellation chance (70% base, down to 20% with high rapport)
+      var rapport = (G.clientRapport && G.clientRapport[p.client]) ? G.clientRapport[p.client].rapport : 0;
+      var cancelChance = Math.max(0.20, 0.70 - (rapport * 0.02));
+      if (Math.random() < cancelChance) {
         var repLoss = p.repGain;
         G.reputation = Math.max(0, G.reputation - repLoss);
         addLog(p.client + ' cancelled ' + p.name + ' due to missed deadline! -' + repLoss + ' rep.', 'bad');
@@ -328,6 +351,12 @@ function checkProjectDeliveries() {
     G.clients[d.client].totalSpent += payout;
     G.clients[d.client].projectCount += 1;
 
+    // Track client rapport
+    if (!G.clientRapport) G.clientRapport = {};
+    if (!G.clientRapport[d.client]) G.clientRapport[d.client] = { rapport: 0, projectsCompleted: 0 };
+    G.clientRapport[d.client].rapport += 5;
+    G.clientRapport[d.client].projectsCompleted += 1;
+
     // Queue the delivery popup
     G.deliveryQueue.push({
       name: d.name,
@@ -444,6 +473,40 @@ function updateOwnProduct(productId) {
   return true;
 }
 
+function upgradeOwnProduct(productId) {
+  var product = null;
+  for (var i = 0; i < G.ownedProducts.length; i++) {
+    if (G.ownedProducts[i].id === productId) { product = G.ownedProducts[i]; break; }
+  }
+  if (!product || product.status !== 'live') return false;
+
+  var scaleOrder = ['small', 'medium', 'large', 'enterprise'];
+  var currentIdx = scaleOrder.indexOf(product.scope);
+  if (currentIdx === -1 || currentIdx >= scaleOrder.length - 1) {
+    addLog('"' + product.name + '" is already at maximum scale.', 'warn');
+    return false;
+  }
+  var nextScope = OWN_PRODUCT_SCOPES.find(function(s) { return s.id === scaleOrder[currentIdx + 1]; });
+  if (!nextScope) return false;
+
+  var upgradeCost = Math.round(nextScope.investment * 0.6);
+  if (G.cash < upgradeCost) {
+    addLog('Need $' + upgradeCost.toLocaleString() + ' to upgrade "' + product.name + '".', 'bad');
+    return false;
+  }
+
+  G.cash -= upgradeCost;
+  product.scope = nextScope.id;
+  product.scopeName = nextScope.name;
+  product.investment = nextScope.investment;
+  product.maxRevenue = randomInt(nextScope.revenueMin, nextScope.revenueMax);
+  product.marketInterest = Math.min(100, product.marketInterest + 25);
+  product.quality = Math.min(100, product.quality + 20);
+  recordTransaction('expense', 'product', upgradeCost, 'Product upgrade: ' + product.name + ' to ' + nextScope.name);
+  addLog('Upgraded "' + product.name + '" to ' + nextScope.name + ' scale! New revenue potential, increased interest. -$' + upgradeCost.toLocaleString(), 'good');
+  return true;
+}
+
 function tickProducts() {
   if (!G.ownedProducts || G.ownedProducts.length === 0) return;
 
@@ -528,6 +591,14 @@ function assignToProduct(employeeId, productId) {
       G.ownedProducts[j].assignedTeam = G.ownedProducts[j].assignedTeam.filter(function(id) { return id !== employeeId; });
     }
   }
+  // Remove from any project assignment (exclusivity: project OR product)
+  for (var jp = 0; jp < G.activeProjects.length; jp++) {
+    if (G.activeProjects[jp].assignedTeam) {
+      G.activeProjects[jp].assignedTeam = G.activeProjects[jp].assignedTeam.filter(function(id) { return id !== employeeId; });
+    }
+  }
+  emp.assignedProjectId = null;
+
   product.assignedTeam.push(employeeId);
   emp.assignedProductId = productId;
   addLog(emp.name + ' assigned to "' + product.name + '".', 'info');

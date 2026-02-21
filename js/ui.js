@@ -21,14 +21,18 @@ var UI = {
   // --- Header ---
   renderHeader: function() {
     var week = Math.ceil(G.day / 7);
-    document.getElementById('header-day').textContent = 'WEEK ' + week + '  |  DAY ' + G.day;
+    var dayInWeek = ((G.day - 1) % 7) + 1;
+    document.getElementById('header-day').innerHTML =
+      'Week ' + week + ' | Day ' + dayInWeek + ' <span class="day-name">' + DAYS_OF_WEEK[G.dayOfWeek] + '</span>';
+    var dayTotalEl = document.getElementById('header-day-total');
+    if (dayTotalEl) dayTotalEl.textContent = 'Day ' + G.day + ' total';
     document.getElementById('header-clock').textContent = getTimeString();
 
-    // Company name — clickable to open company modal
+    // Company name — clickable to open company modal (v0.09: dotted underline + info icon)
     var compEl = document.getElementById('header-company');
     if (compEl && G.player) {
-      compEl.textContent = G.player.companyName;
-      compEl.style.cursor = 'pointer';
+      compEl.innerHTML = escHtml(G.player.companyName) + ' <span class="company-info-icon">i</span>';
+      compEl.className = 'header-company header-company-clickable';
       compEl.title = 'Click to view company profile';
       compEl.onclick = showCompanyModal;
     }
@@ -273,7 +277,9 @@ var UI = {
         '<span class="project-name">' + escHtml(project.name) + '</span>' +
         '<span class="project-payout">$' + project.payout.toLocaleString() + '</span>' +
       '</div>' +
-      '<div class="project-meta">' + escHtml(project.client) + ' &mdash; ' + project.daysToComplete + ' days &mdash; ' + complexLabel + '</div>' +
+      '<div class="project-meta">' + escHtml(project.client) +
+        (G.clientRapport && G.clientRapport[project.client] ? ' <span class="rapport-badge">[Repeat Client]</span>' : '') +
+        ' &mdash; ' + project.daysToComplete + ' days &mdash; ' + complexLabel + '</div>' +
       reqText +
       '<div class="project-expires">Expires in ' + project.expiresIn + ' day' + (project.expiresIn !== 1 ? 's' : '') + '</div>' +
       (check.ok ? '' : '<div class="project-lock-reason">' + escHtml(check.reason) + '</div>') +
@@ -417,9 +423,21 @@ var UI = {
 
       var isAssigned = project.assignedTeam && project.assignedTeam.indexOf(emp.id) !== -1;
       var roleLabel = roleLabels[emp.role.id] || emp.role.id.toUpperCase().slice(0, 3);
+
+      // v0.09: Show current assignment status
+      var assignStatus = '';
+      if (!isAssigned && emp.assignedProjectId) {
+        var onProj = G.activeProjects.find(function(p) { return p.id === emp.assignedProjectId; });
+        if (onProj) assignStatus = ' (on ' + onProj.name + ')';
+      }
+      if (!isAssigned && emp.assignedProductId) {
+        var onProd = G.ownedProducts ? G.ownedProducts.find(function(p) { return p.id === emp.assignedProductId; }) : null;
+        if (onProd) assignStatus = ' (on ' + onProd.name + ')';
+      }
+
       var btn = document.createElement('button');
       btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
-      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' [' + roleLabel + '] TEC:' + emp.technical;
+      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' [' + roleLabel + '] TEC:' + emp.technical + assignStatus;
       btn.onclick = (function(empId, projId, assigned) {
         return function() {
           if (assigned) {
@@ -901,19 +919,20 @@ var UI = {
     var foodEl = document.getElementById('shop-food');
     foodEl.innerHTML = '';
 
-    var orderedToday = G.lastFoodOrderDay >= G.day;
     var foodSpeedPerk = G.perks.find(function(p) { return p.id === 'food_speed'; });
+    if (!G.foodPurchasedToday) G.foodPurchasedToday = {};
 
     for (var i = 0; i < FOOD_ITEMS.length; i++) {
       (function(item) {
         var cost = getFoodCost(item);
         var buffActive = !!(item.buff && foodSpeedPerk);
-        var disabledReason = orderedToday ? 'Ordered today — come back tomorrow'
+        var itemOrderedToday = G.foodPurchasedToday[item.id] >= G.day;
+        var disabledReason = itemOrderedToday ? 'Already had ' + item.name + ' today'
           : buffActive ? 'Buff active (' + foodSpeedPerk.daysLeft + 'd left)'
           : '';
         var btn = document.createElement('button');
         btn.className = 'action-btn';
-        btn.disabled = G.cash < cost || orderedToday || buffActive;
+        btn.disabled = G.cash < cost || itemOrderedToday || buffActive;
         btn.innerHTML =
           '<div>' +
             '<span class="action-name">' + escHtml(item.name) + '</span>' +
@@ -1165,6 +1184,21 @@ var UI = {
         btnUpdate.disabled = !canAct(1) || G.cash < updateCost;
         btnUpdate.onclick = (function(id) { return function(e) { e.stopPropagation(); actionUpdateProduct(id); }; })(product.id);
         actionsDropdown.appendChild(btnUpdate);
+
+        // v0.09: Upgrade to higher scale
+        var scopes = ['small', 'medium', 'large', 'enterprise'];
+        var scopeIdx = scopes.indexOf(product.scope);
+        if (scopeIdx >= 0 && scopeIdx < scopes.length - 1) {
+          var nextScope = scopes[scopeIdx + 1];
+          var nextScopeData = OWN_PRODUCT_SCOPES.find(function(s) { return s.id === nextScope; });
+          var upgradeCost = nextScopeData ? Math.round(nextScopeData.investment * 0.6) : 0;
+          var btnUpgrade = document.createElement('button');
+          btnUpgrade.className = 'btn btn-primary btn-small';
+          btnUpgrade.textContent = 'UPGRADE TO ' + nextScope.toUpperCase() + ' (2 AP, $' + upgradeCost.toLocaleString() + ')';
+          btnUpgrade.disabled = !canAct(2) || G.cash < upgradeCost;
+          btnUpgrade.onclick = (function(id) { return function(e) { e.stopPropagation(); actionUpgradeProduct(id); }; })(product.id);
+          actionsDropdown.appendChild(btnUpgrade);
+        }
       }
 
       if (G.team.length > 0) {
@@ -1249,9 +1283,21 @@ var UI = {
       var emp = G.team[i];
       if (devRoles.indexOf(emp.role.id) === -1) continue;
       var isAssigned = product.assignedTeam && product.assignedTeam.indexOf(emp.id) !== -1;
+
+      // v0.09: Show current assignment status
+      var prodAssignStatus = '';
+      if (!isAssigned && emp.assignedProjectId) {
+        var onProj2 = G.activeProjects.find(function(p) { return p.id === emp.assignedProjectId; });
+        if (onProj2) prodAssignStatus = ' (on ' + onProj2.name + ')';
+      }
+      if (!isAssigned && emp.assignedProductId) {
+        var onProd2 = G.ownedProducts ? G.ownedProducts.find(function(p) { return p.id === emp.assignedProductId; }) : null;
+        if (onProd2) prodAssignStatus = ' (on ' + onProd2.name + ')';
+      }
+
       var btn = document.createElement('button');
       btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
-      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' (TEC:' + emp.technical + ')';
+      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' (TEC:' + emp.technical + ')' + prodAssignStatus;
       btn.onclick = (function(empId, prodId, assigned) {
         return function() {
           if (assigned) unassignFromProduct(empId);
@@ -1271,46 +1317,55 @@ var UI = {
     modal.style.display = 'flex';
   },
 
-  // --- Help Tab ---
+  // --- Help Tab (v0.09: rewritten, no caching) ---
   renderHelp: function() {
     var el = document.getElementById('tab-help');
     if (!el) return;
-    // Only render once (static content)
-    if (el.dataset.rendered) return;
-    el.dataset.rendered = '1';
     el.innerHTML =
       '<div class="dashboard-section">' +
         '<h2 class="section-title">HOW TO PLAY</h2>' +
         '<div class="help-block">' +
           '<h3 class="help-heading">Core Stats</h3>' +
           '<div class="help-item"><span class="help-term">AP</span> Action Points — your daily actions (default 4/day). Spend wisely.</div>' +
-          '<div class="help-item"><span class="help-term">NRG</span> Energy — your stamina. Hitting 0 stops all AP usage for the day and hurts your team.</div>' +
+          '<div class="help-item"><span class="help-term">NRG</span> Energy — your stamina. Hitting 0 stops all AP usage. Sleep restores ~75 base (less with active projects/team).</div>' +
           '<div class="help-item"><span class="help-term">TEC</span> Technical — solo work speed, product development progress.</div>' +
           '<div class="help-item"><span class="help-term">COM</span> Communication — reduces team conflict events.</div>' +
           '<div class="help-item"><span class="help-term">REL</span> Reliability — slows loyalty decay. Your team trusts steady founders.</div>' +
         '</div>' +
         '<div class="help-block">' +
-          '<h3 class="help-heading">Projects</h3>' +
+          '<h3 class="help-heading">Food & Energy</h3>' +
+          '<div class="help-item">Buy food from the Shop tab to restore energy. Each food item can be purchased once per day.</div>' +
+          '<div class="help-item"><span class="help-term">Buffs</span> Expensive foods grant temporary speed buffs (1-3 days). Only one buff active at a time.</div>' +
+          '<div class="help-item"><span class="help-term">Team Dinner</span> Also boosts team loyalty (+5 for all).</div>' +
+        '</div>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Projects & Clients</h3>' +
           '<div class="help-item"><span class="help-term">Pipeline</span> Available leads. Accept them (1 AP) before they expire in 3 days.</div>' +
-          '<div class="help-item"><span class="help-term">Complexity</span> Higher complexity projects advance slower solo. Assign team members to speed things up.</div>' +
-          '<div class="help-item"><span class="help-term">Work Myself</span> Spend 1 AP to personally advance a project. TEC skill improves solo speed.</div>' +
-          '<div class="help-item"><span class="help-term">Assign Team</span> Any team member can be assigned. Devs/Devops lead progress; Sales/Marketing boost delivery bonuses.</div>' +
-          '<div class="help-item"><span class="help-term">Deadline</span> Extend for -rep. 3+ days overdue risks client cancellation.</div>' +
+          '<div class="help-item"><span class="help-term">Complexity</span> Higher complexity projects advance slower solo. Assign team to speed things up.</div>' +
+          '<div class="help-item"><span class="help-term">Skill Matching</span> High-skill devs on easy projects = 1.5x speed. Low-skill on hard projects = 0.4x.</div>' +
+          '<div class="help-item"><span class="help-term">Client Rapport</span> Delivering projects builds rapport. Repeat clients appear with a badge and are more forgiving on deadlines.</div>' +
+          '<div class="help-item"><span class="help-term">Deadline</span> Extend for -rep. 3+ days overdue risks cancellation (rapport reduces this risk).</div>' +
         '</div>' +
         '<div class="help-block">' +
           '<h3 class="help-heading">Your Products</h3>' +
-          '<div class="help-item">Develop your own software to sell on the free market for passive daily income.</div>' +
-          '<div class="help-item"><span class="help-term">Quality</span> Decays over time without a team assigned. Below 0 = product dies.</div>' +
-          '<div class="help-item"><span class="help-term">Market Interest</span> How hot your product is. Maintained by keeping quality high.</div>' +
-          '<div class="help-item"><span class="help-term">Update</span> Costs 20% of original investment to restore quality and interest.</div>' +
+          '<div class="help-item"><span class="help-term">Greenlight</span> Invest AP to validate your idea. Once approved, development begins.</div>' +
+          '<div class="help-item"><span class="help-term">Building</span> Work on it yourself or assign team. Requires dev days to complete.</div>' +
+          '<div class="help-item"><span class="help-term">Live</span> Generates daily passive revenue. Quality decays without assigned team.</div>' +
+          '<div class="help-item"><span class="help-term">Update</span> Costs 20% of investment to restore quality and interest.</div>' +
+          '<div class="help-item"><span class="help-term">Upgrade</span> Scale up live products (small > medium > large > enterprise) for more revenue potential.</div>' +
         '</div>' +
         '<div class="help-block">' +
           '<h3 class="help-heading">Team & Hiring</h3>' +
-          '<div class="help-item"><span class="help-term">Loyalty</span> Decays daily. Falls to 0 = they quit. Keep it up with parties, good management.</div>' +
-          '<div class="help-item"><span class="help-term">Payroll</span> Weekly (every 7 days). Miss it and employees walk out + you lose rep.</div>' +
+          '<div class="help-item"><span class="help-term">Loyalty</span> Decays daily. Falls to 0 = they quit. Keep it up with parties, food, good management.</div>' +
+          '<div class="help-item"><span class="help-term">Payroll</span> Weekly (every 7 days). Warnings at 3/2/1 days before. Missed payroll: loyal staff may stay, disloyal will leave.</div>' +
+          '<div class="help-item"><span class="help-term">Exclusivity</span> Each team member can only be assigned to ONE thing — a project OR a product. Assigning to one removes them from the other.</div>' +
           '<div class="help-item"><span class="help-term">Interview</span> 1st interview reveals Technical skill. 2nd reveals all skills + perk.</div>' +
           '<div class="help-item"><span class="help-term">Negotiate</span> The patience bar shows how many counteroffers remain before they walk.</div>' +
           '<div class="help-item"><span class="help-term">Poach</span> Steal a scouted employee. If successful, negotiate salary immediately.</div>' +
+        '</div>' +
+        '<div class="help-block">' +
+          '<h3 class="help-heading">Monthly Recap</h3>' +
+          '<div class="help-item">Every 28 days, a monthly recap shows your P&L summary, projects completed, team size, and market position.</div>' +
         '</div>' +
         '<div class="help-block">' +
           '<h3 class="help-heading">Market & Scouting</h3>' +
@@ -1331,9 +1386,9 @@ var UI = {
         '</div>' +
         '<div class="help-block">' +
           '<h3 class="help-heading">Skill Colors</h3>' +
-          '<div class="help-item"><span class="skill-dots skill-low">\u25A0\u25A0\u25A0</span> 1–3: Needs work</div>' +
-          '<div class="help-item"><span class="skill-dots skill-ok">\u25A0\u25A0\u25A0\u25A0</span> 4–7: Capable</div>' +
-          '<div class="help-item"><span class="skill-dots skill-great">\u25A0\u25A0</span> 8–9: Expert</div>' +
+          '<div class="help-item"><span class="skill-dots skill-low">\u25A0\u25A0\u25A0</span> 1\u20133: Needs work</div>' +
+          '<div class="help-item"><span class="skill-dots skill-ok">\u25A0\u25A0\u25A0\u25A0</span> 4\u20137: Capable</div>' +
+          '<div class="help-item"><span class="skill-dots skill-great">\u25A0\u25A0</span> 8\u20139: Expert</div>' +
           '<div class="help-item"><span class="skill-dots skill-perfect">\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0\u25A0</span> 10: Perfect</div>' +
         '</div>' +
       '</div>';

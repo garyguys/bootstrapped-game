@@ -80,6 +80,23 @@ var COMPETITOR_ARCHETYPES = [
     shareBase: 16, growthRate: 0.5, failChance: 0.09, canAcquire: false, focus: 'Green AI infrastructure',
     acqPerks: ['ESG credentials (+4 rep)', 'Government grants access'],
     acqRisks: ['Higher operating costs', 'Limited compute budget'] },
+  // v0.09: More AI-focused niche archetypes
+  { name: 'SynthMind',        style: 'niche',      desc: 'Synthetic data and LLM fine-tuning startup.',
+    shareBase: 18, growthRate: 0.7, failChance: 0.12, canAcquire: false, focus: 'Synthetic data & LLMs',
+    acqPerks: ['LLM expertise (+5 rep)', 'Training data pipeline'],
+    acqRisks: ['GPU cost dependency', 'Rapidly shifting landscape'] },
+  { name: 'CodePilot AI',     style: 'niche',      desc: 'AI-powered developer tools. Coding copilot for teams.',
+    shareBase: 20, growthRate: 0.9, failChance: 0.11, canAcquire: false, focus: 'AI developer tools',
+    acqPerks: ['Dev productivity tech (+5 rep)', 'Strong developer community'],
+    acqRisks: ['Crowded market', 'Big tech competitors'] },
+  { name: 'VisionArc',        style: 'niche',      desc: 'Computer vision for retail and logistics.',
+    shareBase: 15, growthRate: 0.6, failChance: 0.13, canAcquire: false, focus: 'Computer vision',
+    acqPerks: ['Vision AI IP (+4 rep)', 'Retail partnerships'],
+    acqRisks: ['Hardware dependency', 'Privacy regulations'] },
+  { name: 'AgentFlow',        style: 'niche',      desc: 'Autonomous AI agents for business automation.',
+    shareBase: 17, growthRate: 1.1, failChance: 0.14, canAcquire: false, focus: 'AI agent orchestration',
+    acqPerks: ['Agent framework tech (+6 rep)', 'Enterprise pilot contracts'],
+    acqRisks: ['Immature technology', 'High customer expectations'] },
 ];
 
 var _nextCompetitorId = 1;
@@ -220,9 +237,9 @@ function tickMarket() {
     }
   }
 
-  // Maintain 4-10 alive companies — spawn new ones if below 4
+  // Maintain 5-10 alive companies — spawn new ones if below 5 (v0.09: more frequent)
   var aliveCount = G.competitors.filter(function(c) { return c.alive; }).length;
-  if (aliveCount < 4 && G.day % 5 === 0) {
+  if (aliveCount < 5 && G.day % 4 === 0) {
     spawnNewCompetitor();
   }
 
@@ -250,7 +267,14 @@ function spawnNewCompetitor() {
   var aliveCount = G.competitors.filter(function(c) { return c.alive; }).length;
   if (aliveCount >= 10) return;
 
-  var arch = randomChoice(available);
+  // v0.09: 60% bias toward AI/niche archetypes
+  var arch;
+  var aiNiche = available.filter(function(a) { return a.style === 'niche'; });
+  if (aiNiche.length > 0 && Math.random() < 0.6) {
+    arch = randomChoice(aiNiche);
+  } else {
+    arch = randomChoice(available);
+  }
   addCompetitor(arch);
   var msg = 'New competitor enters the market: ' + arch.name + ' (' + arch.focus + ')';
   addLog(msg, 'warn');

@@ -21,6 +21,8 @@ var MALE_FIRST_NAMES = [
   'Erik', 'Ivan', 'Leo', 'Omar', 'Raj', 'Andre', 'Daniel', 'Ethan',
   'Felix', 'Grant', 'Hugo', 'Jack', 'Kyle', 'Liam', 'Noah', 'Oscar',
   'Alex', 'Jordan', 'Sam', 'Blake', 'Drew', 'Noel',
+  'Victor', 'Mateo', 'Hiroshi', 'Theo', 'Ravi', 'Soren', 'Dmitri', 'Kai',
+  'Luca', 'Niko', 'Rohan', 'Sebastian', 'Tariq', 'Zane', 'Axel',
 ];
 
 var FEMALE_FIRST_NAMES = [
@@ -28,6 +30,8 @@ var FEMALE_FIRST_NAMES = [
   'Anya', 'Nina', 'Lina', 'Zara', 'Mei', 'Luna', 'Clara', 'Diana',
   'Eva', 'Grace', 'Hannah', 'Iris', 'Julia', 'Kate', 'Lily', 'Mia',
   'Taylor', 'Riley', 'Quinn', 'Avery', 'Harper', 'Sage',
+  'Aria', 'Camila', 'Daphne', 'Elara', 'Freya', 'Gemma', 'Ivy', 'Kira',
+  'Leila', 'Nadia', 'Petra', 'Rosa', 'Suki', 'Uma', 'Vera',
 ];
 
 var CANDIDATE_LAST_NAMES = [
@@ -35,6 +39,7 @@ var CANDIDATE_LAST_NAMES = [
   'Santos', 'Johansson', 'Park', 'Nguyen', 'Ali', 'Schmidt', 'Cohen', 'Tanaka',
   'Rivera', 'Volkov', 'Dubois', 'Ibrahim', 'Larsson', 'Torres', 'Yamamoto', 'Shah',
   'Lee', 'Wang', 'Reyes', 'Lopez', 'Brown', 'Davis', 'Wilson', 'Zhang',
+  'Okonkwo', 'Petrov', 'Andersson', 'Khatri', 'Moreno', 'Fujita', 'Bianchi', 'Nkosi', 'Vasquez', 'Lam',
 ];
 
 // Work history company names for background generation
@@ -497,7 +502,10 @@ function getTeamProjectBonus(project) {
     if (emp.flaw && emp.flaw.id === 'slow_starter' && emp.daysEmployed < emp.flaw.value) effectiveness = 0.5;
     if (emp.flaw && emp.flaw.id === 'secret_slacker') effectiveness *= emp.flaw.value;
 
-    var contrib = emp.technical * roleMultiplier * effectiveness;
+    // Skill-based contribution: scale with project complexity
+    var techRatio = emp.technical / Math.max(1, project.complexity * 2);
+    var complexityMultiplier = techRatio >= 2.0 ? 1.5 : techRatio >= 1.0 ? 1.0 : techRatio >= 0.5 ? 0.7 : 0.4;
+    var contrib = emp.technical * roleMultiplier * effectiveness * complexityMultiplier;
 
     if (emp.perk && emp.perk.id === 'night_owl') contrib += emp.perk.value;
     if (emp.perk && emp.perk.id === 'perfectionist') contrib *= 0.9;
@@ -559,6 +567,16 @@ function assignToProject(employeeId, projectId) {
       p.assignedTeam = p.assignedTeam.filter(function(id) { return id !== employeeId; });
     }
   }
+
+  // Remove from any product assignment (exclusivity: project OR product)
+  if (G.ownedProducts) {
+    for (var jp = 0; jp < G.ownedProducts.length; jp++) {
+      if (G.ownedProducts[jp].assignedTeam) {
+        G.ownedProducts[jp].assignedTeam = G.ownedProducts[jp].assignedTeam.filter(function(id) { return id !== employeeId; });
+      }
+    }
+  }
+  emp.assignedProductId = null;
 
   proj.assignedTeam.push(employeeId);
   emp.assignedProjectId = projectId;

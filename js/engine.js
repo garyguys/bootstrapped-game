@@ -73,15 +73,16 @@ function checkExhaustedMistake() {
 
 // Calculate energy recovery for sleeping based on active projects
 function getSleepEnergyRecovery() {
-  var base = 100;
-  var projectPenalty = G.activeProjects.length * 8;
-  return Math.max(40, base - projectPenalty);
+  var base = 75;
+  var projectPenalty = G.activeProjects.length * 10;
+  var teamOverhead = Math.floor(G.team.length * 2);
+  return Math.max(30, base - projectPenalty - teamOverhead);
 }
 
 function getPushEnergyRecovery() {
-  var base = 40;
-  var projectPenalty = G.activeProjects.length * 5;
-  return Math.max(15, base - projectPenalty);
+  var base = 30;
+  var projectPenalty = G.activeProjects.length * 6;
+  return Math.max(10, base - projectPenalty);
 }
 
 // --- Energy Exhaustion: Project Failures + Team Conflict ---
@@ -183,11 +184,69 @@ function endDaySilent() {
     G._openSourcePendingLead = false;
     if (G.pipeline.length < 5) G.pipeline.push(generateProject());
   }
-  if (G.pipeline.length < 2) generatePipelineLeads(false);
+  if (G.pipeline.length < 2) generatePipelineLeads(G.day <= 7);
   agePipelineLeads();
   ageCandidates();
   checkStageProgression();
   checkBankruptcy();
+}
+
+// --- Monthly Recap (every 4 weeks) ---
+function showMonthlyRecap() {
+  var monthNum = Math.floor((G.day - 1) / 28);
+  var startDay = (monthNum - 1) * 28 + 1;
+  var endDay = monthNum * 28;
+
+  var monthIncome = 0, monthExpenses = 0;
+  var monthProjectsCompleted = 0;
+  var monthClients = {};
+  for (var i = 0; i < (G.transactions || []).length; i++) {
+    var tx = G.transactions[i];
+    if (tx.day >= startDay && tx.day <= endDay) {
+      if (tx.type === 'income') monthIncome += tx.amount;
+      else monthExpenses += tx.amount;
+    }
+  }
+  for (var j = 0; j < G.completedProjects.length; j++) {
+    var cp = G.completedProjects[j];
+    if (cp.day >= startDay && cp.day <= endDay) {
+      monthProjectsCompleted++;
+      if (!monthClients[cp.client]) monthClients[cp.client] = 0;
+      monthClients[cp.client] += cp.payout;
+    }
+  }
+  var bestClient = 'None';
+  var bestVal = 0;
+  for (var cn in monthClients) {
+    if (Object.prototype.hasOwnProperty.call(monthClients, cn)) {
+      if (monthClients[cn] > bestVal) { bestVal = monthClients[cn]; bestClient = cn; }
+    }
+  }
+  var shares = getPlayerMarketShare();
+  var marketPct = Math.round((shares.player / shares.total) * 100);
+  var netPL = monthIncome - monthExpenses;
+
+  var modal = document.getElementById('event-modal');
+  document.getElementById('event-modal-title').textContent = 'MONTHLY RECAP — Month ' + monthNum;
+  document.getElementById('event-modal-desc').innerHTML =
+    '<div class="negotiation-row"><span>Revenue</span><span style="color:var(--green)">$' + monthIncome.toLocaleString() + '</span></div>' +
+    '<div class="negotiation-row"><span>Expenses</span><span style="color:var(--red)">-$' + monthExpenses.toLocaleString() + '</span></div>' +
+    '<div class="negotiation-row" style="border-top:1px solid var(--border);padding-top:0.25rem;"><span>Net P&L</span><span style="color:' + (netPL >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (netPL >= 0 ? '+' : '') + '$' + netPL.toLocaleString() + '</span></div>' +
+    '<br>' +
+    '<div class="negotiation-row"><span>Market Share</span><span>' + marketPct + '%</span></div>' +
+    '<div class="negotiation-row"><span>Projects Completed</span><span>' + monthProjectsCompleted + '</span></div>' +
+    '<div class="negotiation-row"><span>Best Customer</span><span>' + escHtml(bestClient) + (bestVal > 0 ? ' ($' + bestVal.toLocaleString() + ')' : '') + '</span></div>' +
+    '<div class="negotiation-row"><span>Team Size</span><span>' + G.team.length + '</span></div>' +
+    '<div class="negotiation-row"><span>Cash on Hand</span><span style="color:var(--green)">$' + G.cash.toLocaleString() + '</span></div>';
+
+  var choices = document.getElementById('event-modal-choices');
+  choices.innerHTML = '';
+  var btn = document.createElement('button');
+  btn.className = 'btn btn-primary btn-small';
+  btn.textContent = 'ONWARD!';
+  btn.onclick = function() { modal.style.display = 'none'; };
+  choices.appendChild(btn);
+  modal.style.display = 'flex';
 }
 
 function startNewDay() {
@@ -234,9 +293,9 @@ function startNewDay() {
     G.energy = Math.min(G.energyMax, G.energy + 10);
   }
 
-  // Generate pipeline if needed
+  // Generate pipeline if needed (guarantee solo-able project first 7 days)
   if (G.pipeline.length < 2) {
-    generatePipelineLeads(false);
+    generatePipelineLeads(G.day <= 7);
   }
 
   // Referral partner perk: extra lead
@@ -280,7 +339,8 @@ function startNewDay() {
   if (G.jobPosted) {
     G.jobPosted = false;
     generateCandidatesForPosting();
-    addLog('Candidates have applied for your job posting!', 'info');
+    addLog('NEW CANDIDATES: Applicants have arrived for your job posting! Check the Team tab.', 'good');
+    G.overnightEvents.push('Job applicants have arrived! Check the Candidates section.');
   }
 
   // Add morning log
@@ -291,6 +351,19 @@ function startNewDay() {
     addLog('Feeling rough after pulling an all-nighter. AP reduced.', 'warn');
   }
 
+  // Payroll warnings (3/2/1 day)
+  if (G.team.length > 0) {
+    var daysUntilPayroll = G.nextPayrollDay - G.day;
+    var payrollAmount = getPayrollAmount();
+    if (daysUntilPayroll === 3) {
+      addLog('Payroll reminder: $' + payrollAmount.toLocaleString() + ' due in 3 days.', 'warn');
+    } else if (daysUntilPayroll === 2) {
+      addLog('Payroll warning: $' + payrollAmount.toLocaleString() + ' due in 2 days!', 'warn');
+    } else if (daysUntilPayroll === 1) {
+      addLog('PAYROLL TOMORROW! Need $' + payrollAmount.toLocaleString() + ' or team may quit.', 'bad');
+    }
+  }
+
   // Check stage progression and bankruptcy
   checkStageProgression();
   checkBankruptcy();
@@ -298,6 +371,11 @@ function startNewDay() {
   saveGame();
   UI.renderAll();
   UI.switchTab('dashboard');
+
+  // Monthly recap (every 4 weeks)
+  if (G.day > 1 && (G.day - 1) % 28 === 0) {
+    showMonthlyRecap();
+  }
 
   // Show project delivery popups
   if (G.deliveryQueue && G.deliveryQueue.length > 0) {
@@ -404,12 +482,27 @@ function checkPayroll() {
     G.reputation = Math.max(0, G.reputation - repLoss);
     addLog('Company reputation tanked. -' + repLoss + ' rep.', 'bad');
 
-    // Immediate walkouts: each team member has 60% chance to leave
+    // Loyalty-based walkout: high loyalty = more likely to stay, low loyalty = quit
+    var stayers = [];
     var walkers = [];
     for (var i = 0; i < G.team.length; i++) {
-      G.team[i].loyalty = Math.max(0, G.team[i].loyalty - 40);
-      if (Math.random() < 0.6) walkers.push(G.team[i]);
+      G.team[i].loyalty = Math.max(0, G.team[i].loyalty - 30);
+      var stayChance = G.team[i].loyalty / 100;
+      if (G.team[i].perk && G.team[i].perk.id === 'penny_pincher') stayChance += 0.2;
+      if (G.team[i].flaw && G.team[i].flaw.id === 'job_hopper') stayChance -= 0.3;
+      stayChance = Math.max(0.05, Math.min(0.95, stayChance));
+      if (Math.random() < stayChance) {
+        stayers.push(G.team[i]);
+      } else {
+        walkers.push(G.team[i]);
+      }
     }
+    // Stayers take additional morale hit
+    for (var s = 0; s < stayers.length; s++) {
+      stayers[s].loyalty = Math.max(5, stayers[s].loyalty - 15);
+      addLog(stayers[s].name + ' is staying despite missed payroll, but morale is very low.', 'warn');
+    }
+    // Walkers quit
     for (var j = 0; j < walkers.length; j++) {
       var q = walkers[j];
       G.team = G.team.filter(function(e) { return e.id !== q.id; });

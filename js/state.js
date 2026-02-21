@@ -112,8 +112,11 @@ function createDefaultState() {
     lastTrainingDay: -99,
     lastOpenSourceDay: -99,
 
-    // Food cooldown
-    lastFoodOrderDay: -99,
+    // Food cooldown (per-item: keyed by food id -> day number)
+    foodPurchasedToday: {},
+
+    // Client rapport (keyed by client name -> {rapport, projectsCompleted})
+    clientRapport: {},
 
     // Transaction ledger
     transactions: [],  // { day, type: 'income'|'expense', category, amount, description }
@@ -141,6 +144,13 @@ function loadGame() {
     if (!raw) return false;
     var saved = JSON.parse(raw);
     G = Object.assign(createDefaultState(), saved);
+    // Migrate v0.08 food cooldown to per-item system
+    if (G.lastFoodOrderDay !== undefined) {
+      G.foodPurchasedToday = {};
+      delete G.lastFoodOrderDay;
+    }
+    if (!G.foodPurchasedToday) G.foodPurchasedToday = {};
+    if (!G.clientRapport) G.clientRapport = {};
     // Migrate old 'developing' products to new greenlight/building system
     if (G.ownedProducts) {
       G.ownedProducts.forEach(function(p) {

@@ -386,7 +386,11 @@ var DAY_EVENTS = [
     id: 'surprise_expense',
     name: 'Unexpected Bill Arrives',
     desc: 'An unexpected invoice landed in your inbox — equipment warranty, software license renewal, or a legal notice.',
-    condition: function() { return G.cash >= 500; },
+    condition: function() {
+      if (G.cash < 500) return false;
+      var daysUntilPayroll = G.nextPayrollDay - G.day;
+      return daysUntilPayroll > 1;
+    },
     weight: 2,
     getBillAmount: function() {
       var stageMults = { freelancer: 1, home_office: 1.5, startup: 3, seed_stage: 5, series_a: 8, growth: 15, enterprise: 22, leader: 30 };
@@ -448,6 +452,209 @@ var DAY_EVENTS = [
         }
         return 'No AP for the full interview.';
       }, requires: function() { return canAct(); } },
+    ]
+  },
+  // --- v0.09 additions ---
+  {
+    id: 'tech_conference',
+    name: 'Tech Conference Invite',
+    desc: 'You\'ve been invited to speak at a local tech conference. Great networking opportunity.',
+    condition: function() { return G.reputation >= 10 && G.day >= 5; },
+    weight: 2,
+    choices: [
+      { text: 'Attend & speak (1 AP, +5 rep, +1 lead)', effect: function() {
+        if (canAct()) {
+          spendAP(1);
+          G.reputation += 5;
+          if (G.pipeline.length < 5) G.pipeline.push(generateProject());
+          addLog('Great conference talk! +5 rep, new lead.', 'good');
+          return 'Conference was a hit! +5 rep and a new lead from the audience.';
+        }
+        return 'No AP for the conference.';
+      }, requires: function() { return canAct(); } },
+      { text: 'Skip it — too busy', effect: function() {
+        addLog('Skipped the conference.', 'info');
+        return 'Skipped the conference. Back to work.';
+      } },
+    ]
+  },
+  {
+    id: 'office_break_in',
+    name: 'Office Break-In',
+    desc: 'Someone broke into your workspace overnight. Equipment is missing.',
+    condition: function() { return G.cash >= 500 && G.day >= 8; },
+    weight: 1,
+    choices: [
+      { text: 'Replace equipment (-$500)', effect: function() {
+        G.cash -= 500;
+        addLog('Replaced stolen equipment. -$500.', 'bad');
+        return 'Replaced the stolen equipment. -$500. Time to get better locks.';
+      }, requires: function() { return G.cash >= 500; } },
+      { text: 'File insurance claim (30% chance full recovery)', effect: function() {
+        if (Math.random() < 0.3) {
+          addLog('Insurance claim approved! No loss.', 'good');
+          return 'Insurance covered everything! No out-of-pocket cost.';
+        } else {
+          G.cash -= 500;
+          addLog('Insurance denied. Had to pay out of pocket. -$500.', 'bad');
+          return 'Insurance denied the claim. Had to replace equipment anyway. -$500.';
+        }
+      } },
+    ]
+  },
+  {
+    id: 'client_referral',
+    name: 'Client Referral',
+    desc: 'A satisfied past client is recommending you to their network.',
+    condition: function() { return G.completedProjects.length > 2; },
+    weight: 2,
+    choices: [
+      { text: 'Accept referrals (+3 rep, +2 leads)', effect: function() {
+        G.reputation += 3;
+        for (var i = 0; i < 2; i++) { if (G.pipeline.length < 5) G.pipeline.push(generateProject()); }
+        addLog('Client referral brought in new leads! +3 rep.', 'good');
+        return 'Word of mouth is powerful! +3 rep and 2 new leads.';
+      } },
+      { text: 'Send a thank-you note (+1 rep)', effect: function() {
+        G.reputation += 1;
+        addLog('Sent a thank-you note. +1 rep.', 'info');
+        return 'Appreciated the referral. +1 rep.';
+      } },
+    ]
+  },
+  {
+    id: 'team_hackathon',
+    name: 'Team Hackathon Proposal',
+    desc: 'Your team wants to do an internal hackathon. It would boost skills but take the whole day.',
+    condition: function() { return G.team.length >= 2; },
+    weight: 2,
+    choices: [
+      { text: 'Run the hackathon (2 AP, all team +1 TEC)', effect: function() {
+        if (canAct(2)) {
+          spendAP(2);
+          for (var i = 0; i < G.team.length; i++) {
+            G.team[i].technical = Math.min(10, G.team[i].technical + 1);
+          }
+          addLog('Hackathon was a blast! All team members +1 TEC.', 'good');
+          return 'Hackathon complete! Everyone learned something new. All team +1 Technical.';
+        }
+        return 'Not enough AP for the hackathon.';
+      }, requires: function() { return canAct(2); } },
+      { text: 'Not today — too much work', effect: function() {
+        for (var i = 0; i < G.team.length; i++) {
+          G.team[i].loyalty = Math.max(0, G.team[i].loyalty - 3);
+        }
+        addLog('Team is disappointed about the cancelled hackathon. -3 loyalty.', 'warn');
+        return 'Team was looking forward to it. Slight morale hit. -3 loyalty all.';
+      } },
+    ]
+  },
+  {
+    id: 'influencer_collab',
+    name: 'Influencer Collaboration',
+    desc: 'A tech influencer offers to feature your company in their next video.',
+    condition: function() { return G.cash >= 300 && G.reputation >= 5; },
+    weight: 2,
+    choices: [
+      { text: 'Sponsor the video (-$300, +8 rep)', effect: function() {
+        G.cash -= 300;
+        G.reputation += 8;
+        addLog('Influencer collaboration! -$300, +8 rep.', 'good');
+        return 'Great exposure from the influencer video. -$300, +8 rep.';
+      }, requires: function() { return G.cash >= 300; } },
+      { text: 'Decline — too expensive', effect: function() {
+        addLog('Declined the influencer collab.', 'info');
+        return 'Passed on the influencer deal. Maybe next time.';
+      } },
+    ]
+  },
+  {
+    id: 'government_grant',
+    name: 'Government Tech Grant',
+    desc: 'A government technology innovation grant is accepting applications.',
+    condition: function() { return G.day >= 10 && G.reputation >= 15; },
+    weight: 1,
+    choices: [
+      { text: 'Apply for the grant (1 AP, 40% chance +$2000)', effect: function() {
+        if (canAct()) {
+          spendAP(1);
+          if (Math.random() < 0.4) {
+            G.cash += 2000;
+            addLog('Grant approved! +$2,000 funding.', 'good');
+            return 'Your application was successful! +$2,000 in grant funding.';
+          } else {
+            addLog('Grant application rejected. Better luck next time.', 'info');
+            return 'Application rejected. The competition was stiff.';
+          }
+        }
+        return 'No AP to fill out the application.';
+      }, requires: function() { return canAct(); } },
+      { text: 'Skip — not worth the hassle', effect: function() {
+        addLog('Skipped the grant application.', 'info');
+        return 'Passed on the grant. Too much paperwork.';
+      } },
+    ]
+  },
+  {
+    id: 'competitor_talent',
+    name: 'Competitor Talent Available',
+    desc: 'A competitor just laid off staff. Their former employees are looking for work.',
+    condition: function() {
+      return G.competitors && G.competitors.some(function(c) { return !c.alive; }) && G.stage !== 'freelancer';
+    },
+    weight: 1,
+    choices: [
+      { text: 'Fast-track a hire (1 AP, discounted candidate)', effect: function() {
+        if (canAct()) {
+          spendAP(1);
+          var c = generateCandidate();
+          c.askingSalary = Math.round(c.askingSalary * 0.75 / 25) * 25;
+          c.salary = c.askingSalary;
+          c.skillsRevealed = 1;
+          G.candidates.push(c);
+          addLog('Scooped up ' + c.name + ' from a failed competitor! They\'re asking 25% less.', 'good');
+          return c.name + ' joined the candidate pool at a 25% salary discount!';
+        }
+        return 'No AP to recruit.';
+      }, requires: function() { return canAct(); } },
+      { text: 'Pass', effect: function() {
+        addLog('Let the opportunity pass.', 'info');
+        return 'Decided not to pursue competitor talent.';
+      } },
+    ]
+  },
+  {
+    id: 'product_idea',
+    name: 'Flash of Inspiration',
+    desc: 'A brilliant product idea strikes you in the middle of the night!',
+    condition: function() {
+      var productStages = ['startup', 'seed_stage', 'series_a', 'growth', 'enterprise', 'leader'];
+      if (productStages.indexOf(G.stage) === -1) return false;
+      return G.ownedProducts && G.ownedProducts.some(function(p) { return p.status === 'greenlight'; });
+    },
+    weight: 1,
+    choices: [
+      { text: 'Channel the inspiration (+3 AP toward greenlight)', effect: function() {
+        var glProduct = null;
+        for (var i = 0; i < G.ownedProducts.length; i++) {
+          if (G.ownedProducts[i].status === 'greenlight') { glProduct = G.ownedProducts[i]; break; }
+        }
+        if (glProduct) {
+          glProduct.apInvested = Math.min(glProduct.apRequired, (glProduct.apInvested || 0) + 3);
+          if (glProduct.apInvested >= glProduct.apRequired) {
+            glProduct.status = 'building';
+            addLog('Inspiration greenlighted "' + glProduct.name + '"! Development begins.', 'good');
+            return 'Your inspiration pushed "' + glProduct.name + '" through greenlight! Development can begin.';
+          }
+          addLog('Inspiration advanced "' + glProduct.name + '" greenlight by +3 AP.', 'good');
+          return 'Channeled your inspiration into "' + glProduct.name + '". +3 AP toward greenlight.';
+        }
+        return 'The idea faded before you could act on it.';
+      } },
+      { text: 'Write it down for later', effect: function() {
+        addLog('Wrote down the idea for later.', 'info');
+        return 'Noted the idea. Maybe you\'ll revisit it.';
+      } },
     ]
   },
 ];
@@ -644,6 +851,84 @@ var OVERNIGHT_EVENTS = [
       G.cash += amount;
       var past = G.completedProjects[Math.floor(Math.random() * G.completedProjects.length)];
       return (past ? past.client : 'A past client') + ' sent a late payment. +$' + amount + '.';
+    }
+  },
+  // --- v0.09 additions ---
+  {
+    id: 'stock_market_bump',
+    name: 'Market Tailwind',
+    condition: function() { return G.day >= 7; },
+    weight: 2,
+    effect: function() {
+      var bonus = randomInt(100, 400);
+      G.cash += bonus;
+      return 'Strong market conditions boosted client spending. +$' + bonus + '.';
+    }
+  },
+  {
+    id: 'open_source_mention',
+    name: 'Open Source Shoutout',
+    condition: function() { return G.reputation >= 10; },
+    weight: 2,
+    effect: function() {
+      var rep = randomInt(2, 5);
+      G.reputation += rep;
+      if (G.pipeline.length < 5) G.pipeline.push(generateProject());
+      return 'Your open source work got a shoutout on social media! +' + rep + ' rep, +1 lead.';
+    }
+  },
+  {
+    id: 'infrastructure_cost',
+    name: 'Infrastructure Bill',
+    condition: function() { return G.activeProjects.length > 0 && G.cash >= 200; },
+    weight: 2,
+    effect: function() {
+      var cost = randomInt(100, 300) + (G.activeProjects.length * 50);
+      G.cash -= cost;
+      return 'Server and tooling costs came due. -$' + cost + '.';
+    }
+  },
+  {
+    id: 'team_achievement',
+    name: 'Team Achievement',
+    condition: function() { return G.team.length >= 2; },
+    weight: 2,
+    effect: function() {
+      var emp = randomChoice(G.team);
+      emp.technical = Math.min(10, emp.technical + 1);
+      emp.loyalty = Math.min(100, emp.loyalty + 5);
+      return emp.name + ' completed an online course overnight! +1 TEC, +5 loyalty.';
+    }
+  },
+  {
+    id: 'industry_trend',
+    name: 'Industry Trend',
+    condition: function() { return G.day >= 14; },
+    weight: 2,
+    effect: function() {
+      var trends = [
+        'AI-powered tools are in high demand.',
+        'Remote work is driving cloud services growth.',
+        'Cybersecurity spending is surging.',
+        'No-code platforms are disrupting the market.',
+        'Enterprise clients are consolidating vendors.',
+        'Startups are pivoting to subscription models.',
+      ];
+      var trend = randomChoice(trends);
+      G.reputation += 1;
+      return 'Industry trend: ' + trend + ' +1 rep for staying relevant.';
+    }
+  },
+  {
+    id: 'client_testimonial',
+    name: 'Client Testimonial',
+    condition: function() { return G.completedProjects.length >= 3; },
+    weight: 2,
+    effect: function() {
+      var rep = randomInt(3, 6);
+      G.reputation += rep;
+      var past = G.completedProjects[Math.floor(Math.random() * G.completedProjects.length)];
+      return (past ? past.client : 'A past client') + ' published a glowing testimonial. +' + rep + ' rep.';
     }
   },
 ];
