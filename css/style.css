@@ -489,15 +489,22 @@ select.create-input option {
 }
 
 .company-info-icon {
-  font-size: 0.55rem;
-  opacity: 0.7;
+  font-size: 0.6rem;
+  opacity: 0.8;
   vertical-align: super;
+  color: var(--cyan);
+}
+
+.header-day-group {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 
 .header-day-total {
   font-size: 0.55rem;
   color: var(--grey-light);
-  margin-top: -0.1rem;
+  margin-top: 0.05rem;
 }
 
 .day-name {

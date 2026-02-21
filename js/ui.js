@@ -26,7 +26,10 @@ var UI = {
       'Week ' + week + ' | Day ' + dayInWeek + ' <span class="day-name">' + DAYS_OF_WEEK[G.dayOfWeek] + '</span>';
     var dayTotalEl = document.getElementById('header-day-total');
     if (dayTotalEl) dayTotalEl.textContent = 'Day ' + G.day + ' total';
-    document.getElementById('header-clock').textContent = getTimeString();
+    // Show only the time portion (day name is already in header-day)
+    var fullTime = getTimeString();
+    var timeOnly = fullTime.indexOf(' ') !== -1 ? fullTime.substring(fullTime.indexOf(' ') + 1) : fullTime;
+    document.getElementById('header-clock').textContent = timeOnly;
 
     // Company name — clickable to open company modal (v0.09: dotted underline + info icon)
     var compEl = document.getElementById('header-company');
