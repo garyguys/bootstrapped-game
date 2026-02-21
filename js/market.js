@@ -160,7 +160,11 @@ function getPlayerMarketShare() {
   for (var i = 0; i < G.competitors.length; i++) {
     if (G.competitors[i].alive) totalCompShare += G.competitors[i].share;
   }
-  var playerShare = Math.max(1, Math.floor(G.reputation / 3));
+  // Reputation alone is very slow (÷12 instead of ÷3)
+  // Products provide meaningful boosts via getProductMarketBonus()
+  var repShare = Math.max(0, Math.floor(G.reputation / 12));
+  var productBonus = typeof getProductMarketBonus === 'function' ? getProductMarketBonus() : 0;
+  var playerShare = Math.max(1, repShare + productBonus);
   return { player: playerShare, competitors: totalCompShare, total: playerShare + totalCompShare };
 }
 

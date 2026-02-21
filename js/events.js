@@ -298,6 +298,158 @@ var DAY_EVENTS = [
       } },
     ]
   },
+  {
+    id: 'key_employee_quits',
+    name: 'Key Employee Wants to Resign',
+    desc: 'One of your team members has come to you with a resignation letter. Low morale is taking its toll.',
+    condition: function() {
+      if (G.team.length === 0) return false;
+      return G.team.some(function(e) { return e.loyalty < 50; });
+    },
+    weight: 2,
+    choices: [
+      { text: 'Counter-offer (+$300/wk salary)', effect: function() {
+        var unhappy = G.team.filter(function(e) { return e.loyalty < 50; });
+        var emp = randomChoice(unhappy.length > 0 ? unhappy : G.team);
+        emp.salary += 300;
+        emp.loyalty = Math.min(100, emp.loyalty + 30);
+        addLog(emp.name + ' agreed to stay with a raise. Salary now $' + emp.salary + '/wk.', 'warn');
+        return emp.name + ' agreed to stay. Salary bumped to $' + emp.salary.toLocaleString() + '/wk.';
+      } },
+      { text: 'Accept the resignation (-5 rep)', effect: function() {
+        var unhappy = G.team.filter(function(e) { return e.loyalty < 50; });
+        var emp = randomChoice(unhappy.length > 0 ? unhappy : G.team);
+        G.team = G.team.filter(function(e) { return e.id !== emp.id; });
+        for (var p = 0; p < G.activeProjects.length; p++) {
+          if (G.activeProjects[p].assignedTeam) {
+            G.activeProjects[p].assignedTeam = G.activeProjects[p].assignedTeam.filter(function(id) { return id !== emp.id; });
+          }
+        }
+        G.reputation = Math.max(0, G.reputation - 5);
+        addLog(emp.name + ' resigned. -5 rep.', 'bad');
+        return emp.name + ' has left the company. -5 rep.';
+      } },
+    ]
+  },
+  {
+    id: 'client_emergency',
+    name: 'Client Emergency',
+    desc: 'A client is demanding immediate attention on an active project.',
+    condition: function() { return G.activeProjects.length > 0; },
+    weight: 2,
+    getProject: function() { return randomChoice(G.activeProjects); },
+    choices: [
+      { text: 'Drop everything and help (1 AP, +10% progress, +3 rep)', effect: function(project) {
+        if (!project) project = randomChoice(G.activeProjects);
+        if (canAct()) {
+          spendAP(1);
+          project.progress = Math.min(100, project.progress + 10);
+          G.reputation += 3;
+          addLog('Jumped on ' + project.client + '\'s emergency. +10% progress, +3 rep.', 'good');
+          return 'Handled ' + project.client + '\'s emergency personally. +10% on ' + project.name + ', +3 rep.';
+        }
+        return 'No AP to respond!';
+      }, requires: function() { return canAct(); } },
+      { text: 'Delegate to team (-8 loyalty all)', effect: function() {
+        for (var i = 0; i < G.team.length; i++) {
+          G.team[i].loyalty = Math.max(0, G.team[i].loyalty - 8);
+        }
+        addLog('Delegated the crisis. Team is stressed. -8 loyalty everyone.', 'warn');
+        return 'Delegated the crisis to your team. They handled it, but morale took a hit. -8 loyalty.';
+      } },
+    ]
+  },
+  {
+    id: 'industry_award',
+    name: 'Industry Award Nomination',
+    desc: 'Your company has been nominated for a regional tech industry award. This is a great PR opportunity.',
+    condition: function() { return G.reputation >= 25; },
+    weight: 1,
+    choices: [
+      { text: 'Attend the ceremony (1 AP, +8 rep)', effect: function() {
+        if (canAct()) {
+          spendAP(1);
+          G.reputation += 8;
+          addLog('Attended the awards ceremony. Great PR! +8 rep.', 'good');
+          return 'Attended the ceremony. Excellent networking. +8 rep.';
+        }
+        return 'No AP available for the ceremony.';
+      }, requires: function() { return canAct(); } },
+      { text: 'Skip it — send a thank-you note (+2 rep)', effect: function() {
+        G.reputation += 2;
+        addLog('Sent a thank-you note for the nomination. +2 rep.', 'info');
+        return 'Skipped the ceremony but acknowledged the nomination. +2 rep.';
+      } },
+    ]
+  },
+  {
+    id: 'surprise_expense',
+    name: 'Unexpected Bill Arrives',
+    desc: 'An unexpected invoice landed in your inbox — equipment warranty, software license renewal, or a legal notice.',
+    condition: function() { return G.cash >= 500; },
+    weight: 2,
+    getBillAmount: function() {
+      var stageMults = { freelancer: 1, home_office: 1.5, micro: 3, boutique: 7, scaleup: 15, leader: 30 };
+      var mult = stageMults[G.stage] || 1;
+      return Math.round(randomInt(200, 600) * mult / 50) * 50;
+    },
+    choices: [
+      { text: 'Pay it (no drama)', getCost: function() {
+        var stageMults = { freelancer: 1, home_office: 1.5, micro: 3, boutique: 7, scaleup: 15, leader: 30 };
+        var mult = stageMults[G.stage] || 1;
+        return Math.round(randomInt(200, 600) * mult / 50) * 50;
+      }, effect: function(project, cost) {
+        if (!cost) {
+          var stageMults = { freelancer: 1, home_office: 1.5, micro: 3, boutique: 7, scaleup: 15, leader: 30 };
+          var mult = stageMults[G.stage] || 1;
+          cost = Math.round(randomInt(200, 600) * mult / 50) * 50;
+        }
+        G.cash -= cost;
+        addLog('Paid the unexpected bill. -$' + cost.toLocaleString() + '.', 'warn');
+        return 'Paid the bill. -$' + cost.toLocaleString() + '. Business as usual.';
+      }, requires: function() { return G.cash >= 200; } },
+      { text: 'Contest it (30% chance to avoid, else pay + $200 penalty)', effect: function(project, cost) {
+        if (!cost) {
+          var stageMults = { freelancer: 1, home_office: 1.5, micro: 3, boutique: 7, scaleup: 15, leader: 30 };
+          var mult = stageMults[G.stage] || 1;
+          cost = Math.round(randomInt(200, 600) * mult / 50) * 50;
+        }
+        if (Math.random() < 0.30) {
+          addLog('Successfully contested the bill! Saved $' + cost.toLocaleString() + '.', 'good');
+          return 'Contested the bill and won! Saved $' + cost.toLocaleString() + '.';
+        } else {
+          var total = cost + 200;
+          G.cash -= total;
+          addLog('Contest failed. Paid $' + total.toLocaleString() + ' including penalty.', 'bad');
+          return 'Contest failed. Paid $' + total.toLocaleString() + ' including a $200 penalty.';
+        }
+      } },
+    ]
+  },
+  {
+    id: 'media_feature',
+    name: 'Journalist Feature Request',
+    desc: 'A tech journalist wants to feature your startup in an upcoming article.',
+    condition: function() { return G.day >= 10 && G.reputation >= 15; },
+    weight: 1,
+    choices: [
+      { text: 'Do a quick quote (free, +4 rep)', effect: function() {
+        G.reputation += 4;
+        addLog('Quick press quote. Nice exposure! +4 rep.', 'good');
+        return 'Gave a quick quote for the article. Good exposure. +4 rep.';
+      } },
+      { text: 'Full feature interview (1 AP, +10 rep, +$300 consulting bump)', effect: function() {
+        if (canAct()) {
+          spendAP(1);
+          G.reputation += 10;
+          G.cash += 300;
+          addLog('Full feature interview. Great publicity! +10 rep, +$300.', 'good');
+          return 'Full feature published. Excellent publicity! +10 rep, +$300 from new inquiries.';
+        }
+        return 'No AP for the full interview.';
+      }, requires: function() { return canAct(); } },
+    ]
+  },
 ];
 
 // --- Overnight Events (surface as notifications on wake) ---
@@ -428,6 +580,70 @@ var OVERNIGHT_EVENTS = [
         G.team[i].loyalty = Math.max(0, G.team[i].loyalty - 5);
       }
       return 'Internal conflict among team members. Everyone\'s loyalty -5.';
+    }
+  },
+  {
+    id: 'employee_burnout',
+    name: 'Employee Burnout Warning',
+    condition: function() {
+      return G.team.some(function(e) { return e.loyalty < 30; });
+    },
+    weight: 2,
+    effect: function() {
+      var atRisk = G.team.filter(function(e) { return e.loyalty < 30; });
+      if (atRisk.length === 0) return 'Quiet night.';
+      var emp = randomChoice(atRisk);
+      emp.loyalty = Math.max(0, emp.loyalty - 15);
+      return emp.name + ' is burning out. Loyalty fell to ' + Math.round(emp.loyalty) + '. Take action before they quit.';
+    }
+  },
+  {
+    id: 'competitor_poach_overnight',
+    name: 'Competitor Poached Staff',
+    condition: function() { return G.team.length >= 2 && G.day >= 14; },
+    weight: 1,
+    effect: function() {
+      // 25% chance a random employee actually leaves
+      if (Math.random() < 0.25) {
+        var victim = randomChoice(G.team);
+        G.team = G.team.filter(function(e) { return e.id !== victim.id; });
+        for (var p = 0; p < G.activeProjects.length; p++) {
+          if (G.activeProjects[p].assignedTeam) {
+            G.activeProjects[p].assignedTeam = G.activeProjects[p].assignedTeam.filter(function(id) { return id !== victim.id; });
+          }
+        }
+        addLog(victim.name + ' was poached overnight by a competitor!', 'bad');
+        return victim.name + ' was recruited away by a competitor last night.';
+      }
+      return 'A competitor sent recruiters, but your team held firm.';
+    }
+  },
+  {
+    id: 'glassdoor_review',
+    name: 'Positive Glassdoor Review',
+    condition: function() {
+      if (G.team.length === 0) return false;
+      var avg = 0;
+      for (var i = 0; i < G.team.length; i++) avg += G.team[i].loyalty;
+      avg = avg / G.team.length;
+      return avg > 60;
+    },
+    weight: 2,
+    effect: function() {
+      G.reputation += 3;
+      return 'A team member left a glowing Glassdoor review. Great culture score! +3 rep.';
+    }
+  },
+  {
+    id: 'late_payment',
+    name: 'Late Client Payment',
+    condition: function() { return G.completedProjects.length > 0; },
+    weight: 2,
+    effect: function() {
+      var amount = randomInt(200, 600);
+      G.cash += amount;
+      var past = G.completedProjects[Math.floor(Math.random() * G.completedProjects.length)];
+      return (past ? past.client : 'A past client') + ' sent a late payment. +$' + amount + '.';
     }
   },
 ];

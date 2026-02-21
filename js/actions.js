@@ -57,6 +57,9 @@ function confirmThenAfterAction(message, type) {
 
 // --- Action: Work on a project ---
 
+// Track which project dropdown should stay open after a work action
+var _keepDropdownOpen = null;
+
 function actionWorkProject(projectId) {
   if (!canAct(AP_COSTS.work_project)) return;
 
@@ -77,7 +80,9 @@ function actionWorkProject(projectId) {
     project.progress = Math.max(0, project.progress - 10);
   }
 
-  confirmThenAfterAction('Worked on ' + project.name + ' — ' + Math.round(project.progress) + '% complete', 'good');
+  // Keep dropdown open after working — no confirmation popup needed
+  _keepDropdownOpen = projectId;
+  afterAction();
 }
 
 // --- Action: Accept a pipeline project ---
@@ -595,24 +600,151 @@ function getDashboardActions() {
     }
   }
 
-  // Client calls for approaching deadlines
-  for (var k = 0; k < G.activeProjects.length; k++) {
-    var ap = G.activeProjects[k];
-    var daysLeft = ap.daysToComplete - ap.daysActive;
-    if (daysLeft <= 2 && ap.progress < 100) {
-      var repCost = Math.min(5, ((ap.deadlineExtensions || 0) + 1) * 2);
+  // Press Release
+  var pressCD = 14;
+  var pressAvail = (G.day - (G.lastPressReleaseDay || -99)) >= pressCD;
+  var pressStageCosts = { freelancer: 500, home_office: 800, micro: 1500, boutique: 4000, scaleup: 10000, leader: 25000 };
+  var pressCost = pressStageCosts[G.stage] || 500;
+  var pressRepGain = G.stage === 'freelancer' ? 5 : G.stage === 'home_office' ? 7 : G.stage === 'micro' ? 9 : G.stage === 'boutique' ? 11 : 15;
+  if (pressAvail) {
+    actions.push({
+      id: 'press_release',
+      name: 'Issue Press Release',
+      desc: '+' + pressRepGain + ' rep, good for brand visibility ($' + pressCost.toLocaleString() + ')',
+      cost: '1 AP',
+      enabled: canAct(1) && G.cash >= pressCost,
+      action: actionPressRelease,
+    });
+  } else {
+    actions.push({
+      id: 'press_release_cd',
+      name: 'Issue Press Release',
+      desc: 'Cooldown: ' + Math.max(0, pressCD - (G.day - (G.lastPressReleaseDay || -99))) + ' day(s)',
+      cost: '1 AP',
+      enabled: false,
+      action: function() {},
+    });
+  }
+
+  // Team Training Day
+  if (G.team.length > 0) {
+    var trainingCD = 21;
+    var trainingAvail = (G.day - (G.lastTrainingDay || -99)) >= trainingCD;
+    var trainingCost = 200 * G.team.length;
+    if (trainingAvail) {
       actions.push({
-        id: 'call_' + ap.id,
-        name: 'Client Call: ' + ap.client,
-        desc: 'Extend ' + ap.name + ' +2 days (-' + repCost + ' rep)',
-        cost: AP_COSTS.client_call + ' AP',
-        enabled: canAct(AP_COSTS.client_call),
-        action: (function(pid) {
-          return function() { actionClientCall(pid); };
-        })(ap.id)
+        id: 'team_training',
+        name: 'Team Training Day',
+        desc: 'Boost all employees skills +1 (random), +10 loyalty ($' + trainingCost.toLocaleString() + ')',
+        cost: '2 AP',
+        enabled: canAct(2) && G.cash >= trainingCost,
+        action: actionTeamTrainingDay,
+      });
+    } else {
+      actions.push({
+        id: 'team_training_cd',
+        name: 'Team Training Day',
+        desc: 'Cooldown: ' + Math.max(0, trainingCD - (G.day - (G.lastTrainingDay || -99))) + ' day(s)',
+        cost: '2 AP',
+        enabled: false,
+        action: function() {},
       });
     }
   }
 
+  // Open Source Contribution
+  var osCD = 7;
+  var osAvail = (G.day - (G.lastOpenSourceDay || -99)) >= osCD;
+  if (osAvail) {
+    actions.push({
+      id: 'open_source',
+      name: 'Open Source Contribution',
+      desc: '+3 rep, extra lead tomorrow (no cost)',
+      cost: '1 AP',
+      enabled: canAct(1),
+      action: actionOpenSource,
+    });
+  } else {
+    actions.push({
+      id: 'open_source_cd',
+      name: 'Open Source Contribution',
+      desc: 'Cooldown: ' + Math.max(0, osCD - (G.day - (G.lastOpenSourceDay || -99))) + ' day(s)',
+      cost: '1 AP',
+      enabled: false,
+      action: function() {},
+    });
+  }
+
+  // Take Vacation (requires team)
+  if (G.team.length >= 1) {
+    actions.push({
+      id: 'vacation',
+      name: 'Take a Vacation',
+      desc: 'Step away for 1-7 days. Team & bills continue. Refreshed on return.',
+      cost: 'No AP',
+      enabled: true,
+      action: function() { UI.showVacationModal(); },
+    });
+  }
+
   return actions;
+}
+
+// --- Action: Press Release ---
+function actionPressRelease() {
+  if (!canAct(1)) return;
+  var pressStageCosts = { freelancer: 500, home_office: 800, micro: 1500, boutique: 4000, scaleup: 10000, leader: 25000 };
+  var cost = pressStageCosts[G.stage] || 500;
+  if (G.cash < cost) {
+    addLog('Can\'t afford a press release. Need $' + cost.toLocaleString() + '.', 'bad');
+    return;
+  }
+  var repGain = G.stage === 'freelancer' ? 5 : G.stage === 'home_office' ? 7 : G.stage === 'micro' ? 9 : G.stage === 'boutique' ? 11 : 15;
+  G.cash -= cost;
+  G.reputation += repGain;
+  G.lastPressReleaseDay = G.day;
+  spendAP(1);
+  addLog('Press release issued! +' + repGain + ' rep. -$' + cost.toLocaleString() + '.', 'good');
+  confirmThenAfterAction('Press release out! +' + repGain + ' rep.', 'good');
+}
+
+// --- Action: Team Training Day ---
+function actionTeamTrainingDay() {
+  if (!canAct(2)) return;
+  var cost = 200 * G.team.length;
+  if (G.cash < cost) {
+    addLog('Can\'t afford team training. Need $' + cost.toLocaleString() + '.', 'bad');
+    return;
+  }
+  G.cash -= cost;
+  G.lastTrainingDay = G.day;
+  spendAP(2);
+  var skills = ['technical', 'communication', 'reliability'];
+  for (var i = 0; i < G.team.length; i++) {
+    var sk = randomChoice(skills);
+    G.team[i][sk] = Math.min(10, G.team[i][sk] + 1);
+    G.team[i].loyalty = Math.min(100, G.team[i].loyalty + 10);
+  }
+  addLog('Team training day complete! All employees gained +1 to a skill and +10 loyalty. -$' + cost.toLocaleString() + '.', 'good');
+  confirmThenAfterAction('Team training done! +1 skill, +10 loyalty for everyone.', 'good');
+}
+
+// --- Action: Open Source Contribution ---
+function actionOpenSource() {
+  if (!canAct(1)) return;
+  G.reputation += 3;
+  G.lastOpenSourceDay = G.day;
+  spendAP(1);
+  // Flag to add an extra lead next day
+  G._openSourcePendingLead = true;
+  addLog('Published an open source contribution. +3 rep. Extra lead incoming tomorrow.', 'good');
+  confirmThenAfterAction('Open source published! +3 rep. New lead arrives tomorrow.', 'good');
+}
+
+// --- Action: Clear Completed Projects ---
+function actionClearCompletedProjects() {
+  var count = G.completedProjects.length;
+  G.completedProjects = [];
+  addLog('Archived ' + count + ' completed project(s).', 'info');
+  UI.renderAll();
 }

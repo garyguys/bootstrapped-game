@@ -1743,6 +1743,29 @@ body.time-dusk      { --bg-current: var(--bg-dusk); }
 }
 
 /* ============================================
+   Company Modal (v5)
+   ============================================ */
+.company-modal-content {
+  background: var(--panel-bg);
+  border: 1px solid var(--green-dark);
+  padding: 1.5rem;
+  max-width: 520px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 0 30px rgba(0, 255, 65, 0.1);
+}
+
+.company-modal-content h4 {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0 0 0.5rem 0;
+}
+
+/* ============================================
    Responsive
    ============================================ */
 @media (min-width: 600px) {

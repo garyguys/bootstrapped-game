@@ -110,6 +110,43 @@ function endDay(pushThrough) {
   });
 }
 
+// Silent day advance for vacation (no animation, no player actions)
+function endDaySilent() {
+  advanceProjects();
+  tickTeam();
+  checkProjectDeliveries();
+  checkMissedDeadlines();
+  if (G.competitors && G.competitors.length > 0) tickMarket();
+  tickPerks();
+  rollOvernightEvents();
+  checkPayroll();
+  tickProducts();
+
+  G.day += 1;
+  G.dayOfWeek = (G.dayOfWeek + 1) % 7;
+  G.timeSlot = 0;
+  G.apUsedToday = 0;
+  G.pushedThroughTonight = false;
+  G.dayEventFired = false;
+  G.pushedLastNight = false;
+
+  G.apMax = getBaseAPMax();
+  G.apCurrent = G.apMax;
+  G.energy = getSleepEnergyRecovery();
+  if (G.upgrades.indexOf('coffee_machine') !== -1) G.energy = Math.min(G.energyMax, G.energy + 10);
+  if (G.upgrades.indexOf('ping_pong') !== -1) G.energy = Math.min(G.energyMax, G.energy + 5);
+  if (G.dayOfWeek >= 5) G.energy = Math.min(G.energyMax, G.energy + 10);
+
+  if (G._openSourcePendingLead) {
+    G._openSourcePendingLead = false;
+    if (G.pipeline.length < 5) G.pipeline.push(generateProject());
+  }
+  if (G.pipeline.length < 2) generatePipelineLeads(false);
+  agePipelineLeads();
+  ageCandidates();
+  checkStageProgression();
+}
+
 function startNewDay() {
   G.day += 1;
   G.dayOfWeek = (G.dayOfWeek + 1) % 7;
@@ -173,6 +210,15 @@ function startNewDay() {
     if (emp.perk && emp.perk.id === 'networker' && emp.daysEmployed % 14 === 0 && emp.daysEmployed > 0) {
       G.reputation += emp.perk.value;
       addLog(emp.name + '\'s network brought in +' + emp.perk.value + ' rep.', 'good');
+    }
+  }
+
+  // Open source contribution lead (from previous day's action)
+  if (G._openSourcePendingLead) {
+    G._openSourcePendingLead = false;
+    if (G.pipeline.length < 5) {
+      G.pipeline.push(generateProject());
+      addLog('Your open source work attracted a new lead!', 'good');
     }
   }
 

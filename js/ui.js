@@ -23,9 +23,14 @@ var UI = {
     document.getElementById('header-day').textContent = 'DAY ' + G.day;
     document.getElementById('header-clock').textContent = getTimeString();
 
-    // Company name
+    // Company name — clickable to open company modal
     var compEl = document.getElementById('header-company');
-    if (compEl && G.player) compEl.textContent = G.player.companyName;
+    if (compEl && G.player) {
+      compEl.textContent = G.player.companyName;
+      compEl.style.cursor = 'pointer';
+      compEl.title = 'Click to view company profile';
+      compEl.onclick = showCompanyModal;
+    }
 
     var cashEl = document.getElementById('header-cash');
     cashEl.textContent = '$' + G.cash.toLocaleString();
@@ -191,8 +196,13 @@ var UI = {
       completedEl.innerHTML = '<div class="empty-state">No completed projects yet.</div>';
     } else {
       completedEl.innerHTML = '';
-      var showCount = Math.min(G.completedProjects.length, 5);
-      for (var k = G.completedProjects.length - 1; k >= G.completedProjects.length - showCount; k--) {
+      var clearBtn = document.createElement('button');
+      clearBtn.className = 'btn btn-small btn-secondary';
+      clearBtn.style.marginBottom = '0.5rem';
+      clearBtn.textContent = 'CLEAR HISTORY (' + G.completedProjects.length + ')';
+      clearBtn.onclick = function() { actionClearCompletedProjects(); };
+      completedEl.appendChild(clearBtn);
+      for (var k = G.completedProjects.length - 1; k >= 0; k--) {
         var cp = G.completedProjects[k];
         var div = document.createElement('div');
         div.className = 'project-card';
@@ -276,6 +286,9 @@ var UI = {
       extWarning = '<div class="project-ext-warn">Extended ' + project.deadlineExtensions + 'x (-rep)</div>';
     }
 
+    var ddOpen = (typeof _keepDropdownOpen !== 'undefined' && _keepDropdownOpen === project.id);
+    if (ddOpen) _keepDropdownOpen = null;
+
     card.innerHTML =
       '<div class="project-card-header">' +
         '<span class="project-name">' + escHtml(project.name) + '</span>' +
@@ -287,7 +300,7 @@ var UI = {
       '<div class="project-progress-bar"><div class="project-progress-fill" style="width:' + Math.round(project.progress) + '%"></div></div>' +
       '<div class="project-meta">' + Math.round(project.progress) + '% complete</div>' +
       '<div class="project-actions-row"></div>' +
-      '<div class="project-actions-dropdown" style="display:none;"></div>';
+      '<div class="project-actions-dropdown" style="display:' + (ddOpen ? 'block' : 'none') + ';"></div>';
 
     var actionsRow = card.querySelector('.project-actions-row');
     var actionsDropdown = card.querySelector('.project-actions-dropdown');
@@ -951,6 +964,18 @@ var UI = {
     if (!el) return;
     el.innerHTML = '';
 
+    var productStages = ['micro', 'boutique', 'scaleup', 'leader'];
+    var productsUnlocked = productStages.indexOf(G.stage) !== -1;
+
+    if (!productsUnlocked) {
+      var lockedMsg = document.createElement('div');
+      lockedMsg.className = 'empty-state';
+      lockedMsg.style.color = 'var(--grey)';
+      lockedMsg.textContent = 'PRODUCTS UNLOCKED AT MICRO STAGE — grow your company first.';
+      el.appendChild(lockedMsg);
+      return;
+    }
+
     // Develop new product button
     var btnDev = document.createElement('button');
     btnDev.className = 'btn btn-primary btn-small';
@@ -1213,6 +1238,54 @@ var UI = {
       '</div>';
   },
 
+  // --- Vacation Modal ---
+  showVacationModal: function() {
+    var modal = document.getElementById('event-modal');
+    var title = document.getElementById('event-modal-title');
+    var desc = document.getElementById('event-modal-desc');
+    var choices = document.getElementById('event-modal-choices');
+
+    title.textContent = 'TAKE A VACATION';
+
+    // Warn about projects that might miss deadlines
+    var riskProjects = G.activeProjects.filter(function(p) {
+      var daysLeft = p.daysToComplete - p.daysActive;
+      return p.progress < 100 && daysLeft <= 7;
+    });
+    var warningHtml = riskProjects.length > 0
+      ? '<br><span style="color:var(--red)">Warning: ' + riskProjects.length + ' project(s) may miss their deadline while you\'re away.</span>'
+      : '';
+
+    desc.innerHTML =
+      'Step away from work for a few days. Your team keeps working, bills are processed, and competitors keep competing.' +
+      '<br><br>Select duration:' + warningHtml;
+
+    choices.innerHTML = '';
+
+    var durations = [1, 2, 3, 5, 7];
+    for (var i = 0; i < durations.length; i++) {
+      var days = durations[i];
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-small btn-secondary';
+      btn.textContent = days + ' day' + (days > 1 ? 's' : '') + ' away';
+      btn.onclick = (function(d) {
+        return function() {
+          modal.style.display = 'none';
+          processVacation(d);
+        };
+      })(days);
+      choices.appendChild(btn);
+    }
+
+    var btnCancel = document.createElement('button');
+    btnCancel.className = 'btn btn-small btn-danger';
+    btnCancel.textContent = 'CANCEL';
+    btnCancel.onclick = function() { modal.style.display = 'none'; };
+    choices.appendChild(btnCancel);
+
+    modal.style.display = 'flex';
+  },
+
   // --- Time of Day ---
   updateTimeOfDay: function() {
     var tod = getTimeOfDay();
@@ -1247,6 +1320,132 @@ var UI = {
     if (target) target.classList.add('active');
   },
 };
+
+// --- Company Profile Modal ---
+function showCompanyModal() {
+  var modal = document.getElementById('company-modal');
+  if (!modal) return;
+  var content = modal.querySelector('.company-modal-content');
+  if (!content) return;
+
+  var dayFounded = 1;
+  var daysInBusiness = G.day - dayFounded;
+
+  // Best clients — sorted by lifetime value
+  var clientEntries = [];
+  if (G.clients) {
+    for (var cname in G.clients) {
+      if (Object.prototype.hasOwnProperty.call(G.clients, cname)) {
+        clientEntries.push({ name: cname, totalSpent: G.clients[cname].totalSpent, projectCount: G.clients[cname].projectCount });
+      }
+    }
+    clientEntries.sort(function(a, b) { return b.totalSpent - a.totalSpent; });
+  }
+
+  var bestClientsHtml = '';
+  if (clientEntries.length === 0) {
+    bestClientsHtml = '<div class="empty-state" style="font-size:0.75rem;">No client history yet.</div>';
+  } else {
+    var topClients = clientEntries.slice(0, 5);
+    for (var ci = 0; ci < topClients.length; ci++) {
+      var cl = topClients[ci];
+      bestClientsHtml +=
+        '<div class="negotiation-row">' +
+          '<span>' + escHtml(cl.name) + ' (' + cl.projectCount + ' project' + (cl.projectCount > 1 ? 's' : '') + ')</span>' +
+          '<span style="color:var(--green)">$' + cl.totalSpent.toLocaleString() + '</span>' +
+        '</div>';
+    }
+  }
+
+  // Team list
+  var teamHtml = '';
+  if (G.team.length === 0) {
+    teamHtml = '<div class="empty-state" style="font-size:0.75rem;">No employees yet.</div>';
+  } else {
+    for (var ti = 0; ti < G.team.length; ti++) {
+      var emp = G.team[ti];
+      var hireDay = G.day - emp.daysEmployed;
+      var loyaltyColor = emp.loyalty > 50 ? 'var(--green)' : emp.loyalty > 25 ? 'var(--amber)' : 'var(--red)';
+      teamHtml +=
+        '<div class="negotiation-row">' +
+          '<span>' + escHtml(emp.name) + ' &mdash; ' + escHtml(emp.levelName + ' ' + emp.role.name) + '</span>' +
+          '<span style="font-size:0.7rem;color:var(--grey-light)">Day ' + hireDay + ' | $' + emp.salary.toLocaleString() + '/wk | <span style="color:' + loyaltyColor + '">' + Math.round(emp.loyalty) + '</span></span>' +
+        '</div>';
+    }
+  }
+
+  // Project history (last 15)
+  var projHistoryHtml = '';
+  if (G.completedProjects.length === 0) {
+    projHistoryHtml = '<div class="empty-state" style="font-size:0.75rem;">No projects completed yet.</div>';
+  } else {
+    var showProjs = G.completedProjects.slice().reverse().slice(0, 15);
+    for (var pi = 0; pi < showProjs.length; pi++) {
+      var pr = showProjs[pi];
+      projHistoryHtml +=
+        '<div class="negotiation-row">' +
+          '<span>' + escHtml(pr.client) + ' — ' + escHtml(pr.name) + '</span>' +
+          '<span style="color:var(--green)">$' + pr.payout.toLocaleString() + '</span>' +
+        '</div>';
+    }
+  }
+
+  content.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">' +
+      '<h3 style="margin:0;font-family:var(--font-display);">' + escHtml(G.player.companyName) + '</h3>' +
+      '<button class="btn btn-small btn-danger" onclick="document.getElementById(\'company-modal\').style.display=\'none\'">CLOSE</button>' +
+    '</div>' +
+
+    '<div class="help-block">' +
+      '<h4 class="help-heading">COMPANY OVERVIEW</h4>' +
+      '<div class="negotiation-row"><span>Stage</span><span style="color:var(--cyan)">' + escHtml(getStageName()) + '</span></div>' +
+      '<div class="negotiation-row"><span>Founded</span><span>Day 1</span></div>' +
+      '<div class="negotiation-row"><span>Days in business</span><span>' + daysInBusiness + '</span></div>' +
+      '<div class="negotiation-row"><span>Total Revenue</span><span style="color:var(--green)">$' + G.totalRevenue.toLocaleString() + '</span></div>' +
+      '<div class="negotiation-row"><span>Reputation</span><span style="color:var(--cyan)">' + G.reputation + '</span></div>' +
+    '</div>' +
+
+    '<div class="help-block">' +
+      '<h4 class="help-heading">FOUNDER</h4>' +
+      '<div class="negotiation-row"><span>' + escHtml(G.player.name) + '</span><span style="color:var(--grey-light)">Founder & CEO</span></div>' +
+      '<div style="margin-top:0.4rem;">' + UI.skillBar('TEC', G.player.technical, 10) + UI.skillBar('COM', G.player.communication, 10) + UI.skillBar('REL', G.player.reliability, 10) + '</div>' +
+    '</div>' +
+
+    '<div class="help-block">' +
+      '<h4 class="help-heading">TEAM (' + G.team.length + ')</h4>' +
+      teamHtml +
+    '</div>' +
+
+    '<div class="help-block">' +
+      '<h4 class="help-heading">TOP CLIENTS</h4>' +
+      bestClientsHtml +
+    '</div>' +
+
+    '<div class="help-block">' +
+      '<h4 class="help-heading">PROJECT HISTORY (' + G.completedProjects.length + ' total)</h4>' +
+      projHistoryHtml +
+    '</div>';
+
+  modal.style.display = 'flex';
+}
+
+// --- Vacation Processing ---
+function processVacation(days) {
+  addLog('Taking a ' + days + '-day vacation...', 'info');
+  // Give morale boost for taking vacation
+  for (var i = 0; i < G.team.length; i++) {
+    G.team[i].loyalty = Math.min(100, G.team[i].loyalty + 10);
+  }
+  for (var d = 0; d < days; d++) {
+    endDaySilent();
+  }
+  G.energy = Math.min(G.energyMax, getSleepEnergyRecovery() + 20);
+  addLog('Returned from ' + days + '-day vacation. Refreshed! Team loyalty +10. Energy restored.', 'good');
+  saveGame();
+  showDayTransition(function() {
+    UI.renderAll();
+  });
+}
 
 // --- HTML Escaping ---
 function escHtml(str) {

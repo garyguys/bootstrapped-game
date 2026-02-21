@@ -96,6 +96,14 @@ function createDefaultState() {
 
     // Project delivery queue (for morning popups)
     deliveryQueue: [],
+
+    // Client tracking (lifetime value)
+    clients: {},
+
+    // Management action cooldowns
+    lastPressReleaseDay: -99,
+    lastTrainingDay: -99,
+    lastOpenSourceDay: -99,
   };
 }
 

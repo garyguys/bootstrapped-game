@@ -112,9 +112,38 @@ function generateWorkHistory(level, roleId) {
   return history;
 }
 
+function getCandidateLevelWeighted() {
+  // Weight candidate level based on player market share percentage
+  var shares = typeof getPlayerMarketShare === 'function' ? getPlayerMarketShare() : { player: 1, total: 100 };
+  var playerPct = (shares.player / Math.max(1, shares.total)) * 100;
+
+  var r = Math.random() * 100;
+  if (playerPct < 5) {
+    // Very low share: 70% Junior, 25% Mid, 5% Senior
+    if (r < 70) return 1;
+    if (r < 95) return 2;
+    return 3;
+  } else if (playerPct < 15) {
+    // Small share: 40% Junior, 40% Mid, 20% Senior
+    if (r < 40) return 1;
+    if (r < 80) return 2;
+    return 3;
+  } else if (playerPct < 30) {
+    // Medium share: 20% Junior, 40% Mid, 40% Senior
+    if (r < 20) return 1;
+    if (r < 60) return 2;
+    return 3;
+  } else {
+    // High share: 10% Junior, 30% Mid, 60% Senior
+    if (r < 10) return 1;
+    if (r < 40) return 2;
+    return 3;
+  }
+}
+
 function generateCandidate() {
   var role = randomChoice(ROLES);
-  var level = randomInt(1, 3); // 1=junior, 2=mid, 3=senior
+  var level = getCandidateLevelWeighted(); // weighted by market share
   var levelNames = ['Junior', 'Mid-Level', 'Senior'];
   var gender = Math.random() < 0.5 ? 'male' : 'female';
 
@@ -154,6 +183,12 @@ function generateCandidate() {
 
   if (perk && perk.id === 'ex_faang') {
     salary = Math.round(salary * 1.4 / 25) * 25;
+  }
+
+  // Perfect-10 skill commands high 5-figure salary
+  if (technical === 10 || communication === 10 || reliability === 10) {
+    salary = randomInt(50000, 80000);
+    salary = Math.round(salary / 1000) * 1000;
   }
 
   // Hidden patience for negotiation (1-5, higher = more patient)

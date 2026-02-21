@@ -301,6 +301,12 @@ function checkProjectDeliveries() {
       if (G.pipeline.length < 5) G.pipeline.push(generateProject());
     }
 
+    // Track client lifetime value
+    if (!G.clients) G.clients = {};
+    if (!G.clients[d.client]) G.clients[d.client] = { totalSpent: 0, projectCount: 0 };
+    G.clients[d.client].totalSpent += payout;
+    G.clients[d.client].projectCount += 1;
+
     // Queue the delivery popup
     G.deliveryQueue.push({
       name: d.name,
@@ -523,6 +529,19 @@ function unassignFromProduct(employeeId) {
     }
   }
   emp.assignedProductId = null;
+}
+
+// Market share bonus from live player products
+function getProductMarketBonus() {
+  var bonus = 0;
+  if (!G.ownedProducts) return 0;
+  for (var i = 0; i < G.ownedProducts.length; i++) {
+    var p = G.ownedProducts[i];
+    if (p.status === 'live') {
+      bonus += Math.floor((p.quality * p.marketInterest) / 1000);
+    }
+  }
+  return bonus;
 }
 
 function agePipelineLeads() {
