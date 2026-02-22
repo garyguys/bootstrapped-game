@@ -157,10 +157,18 @@ function generateCandidate() {
 
   // Generate random appearance using the sprite system
   var isFemale = gender === 'female';
-  var hairStyles = isFemale ? AvatarGen.FEMALE_HAIR_STYLES : AvatarGen.MALE_HAIR_STYLES;
+  // Female hair: ponytail/long most common, short less common, bald rare
+  var femaleHairPick = function() {
+    var r = Math.random();
+    if (r < 0.40) return 'ponytail';
+    if (r < 0.75) return 'long';
+    if (r < 0.93) return 'short';
+    return 'bald'; // ~7%
+  };
+  var pickedHair = isFemale ? femaleHairPick() : randomChoice(AvatarGen.MALE_HAIR_STYLES);
   var appearance = {
     skinTone: randomInt(0, AvatarGen.SKIN_TONES.length - 1),
-    hairStyle: randomChoice(hairStyles),
+    hairStyle: pickedHair,
     hairColorIdx: randomInt(0, AvatarGen.HAIR_COLORS.length - 1),
     shirtStyle: randomChoice(AvatarGen.SHIRT_STYLES),
     shirtColorIdx: randomInt(0, AvatarGen.SHIRT_COLORS.length - 1),

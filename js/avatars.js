@@ -110,7 +110,7 @@ var AvatarGen = (function() {
 
   // Hair styles available per gender
   var MALE_HAIR_STYLES = ['short', 'long', 'mohawk', 'buzz', 'curly', 'bald', 'beanie', 'spiky'];
-  var FEMALE_HAIR_STYLES = ['ponytail', 'long', 'bald'];
+  var FEMALE_HAIR_STYLES = ['ponytail', 'long', 'short', 'bald'];
 
   // All shirt/pants/accessory style keys
   var SHIRT_STYLES = ['tee', 'hoodie', 'tank', 'buttonup', 'jacket'];

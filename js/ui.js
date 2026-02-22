@@ -1995,8 +1995,13 @@ function showCompanyModal() {
 
     '<div class="help-block">' +
       '<h4 class="help-heading">FOUNDER</h4>' +
-      '<div class="negotiation-row"><span>' + escHtml(G.player.name) + '</span><span style="color:var(--grey-light)">Founder & CEO</span></div>' +
-      '<div style="margin-top:0.4rem;">' + UI.skillBar('TEC', G.player.technical, 10) + UI.skillBar('COM', G.player.communication, 10) + UI.skillBar('REL', G.player.reliability, 10) + '</div>' +
+      '<div style="display:flex;gap:0.75rem;align-items:flex-start;">' +
+        '<div id="company-founder-avatar" style="flex-shrink:0;width:48px;height:48px;image-rendering:pixelated;"></div>' +
+        '<div style="flex:1;">' +
+          '<div class="negotiation-row"><span>' + escHtml(G.player.name) + '</span><span style="color:var(--grey-light)">Founder & CEO</span></div>' +
+          '<div style="margin-top:0.4rem;">' + UI.skillBar('TEC', G.player.technical, 10) + UI.skillBar('COM', G.player.communication, 10) + UI.skillBar('REL', G.player.reliability, 10) + '</div>' +
+        '</div>' +
+      '</div>' +
     '</div>' +
 
     (G.upgrades.length > 0 ? '<div class="help-block">' +
@@ -2023,6 +2028,16 @@ function showCompanyModal() {
     '</div>';
 
   modal.style.display = 'flex';
+
+  // Render player avatar into founder section
+  setTimeout(function() {
+    var avatarSlot = document.getElementById('company-founder-avatar');
+    if (avatarSlot && typeof AvatarGen !== 'undefined' && G.player) {
+      avatarSlot.innerHTML = '';
+      var canvas = AvatarGen.generate(G.player, 1);
+      avatarSlot.appendChild(canvas);
+    }
+  }, 0);
 }
 
 // --- Vacation Processing ---
