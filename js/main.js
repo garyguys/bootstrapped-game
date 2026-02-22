@@ -64,7 +64,7 @@
       eyeColor: cc.eyeColor,
       shoeColor: cc.shoeColor,
     };
-    var generated = AvatarGen.generate(previewState, 4);
+    var generated = AvatarGen.generate(previewState, 3);
     canvas.width = generated.width;
     canvas.height = generated.height;
     var ctx = canvas.getContext('2d');
