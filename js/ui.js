@@ -524,13 +524,33 @@ var UI = {
       }
     }
 
-    // Roster
+    // Roster — grouped by role, ranked by level (Senior > Mid-Level > Junior)
     if (G.team.length === 0) {
       rosterEl.innerHTML = '<div class="empty-state">No employees yet. Post a job listing to start hiring.</div>';
     } else {
       rosterEl.innerHTML = '';
+      var levelOrder = { 'Senior': 0, 'Mid-Level': 1, 'Junior': 2 };
+      var roleOrder = ['developer', 'designer', 'devops', 'pm', 'sales', 'marketer'];
+      var grouped = {};
       for (var i = 0; i < G.team.length; i++) {
-        rosterEl.appendChild(this.createEmployeeCard(G.team[i]));
+        var rid = G.team[i].role.id;
+        if (!grouped[rid]) grouped[rid] = [];
+        grouped[rid].push(G.team[i]);
+      }
+      for (var r = 0; r < roleOrder.length; r++) {
+        var roleId = roleOrder[r];
+        if (!grouped[roleId] || grouped[roleId].length === 0) continue;
+        grouped[roleId].sort(function(a, b) {
+          return (levelOrder[a.levelName] || 9) - (levelOrder[b.levelName] || 9);
+        });
+        var roleName = grouped[roleId][0].role.name;
+        var header = document.createElement('div');
+        header.className = 'team-role-header';
+        header.innerHTML = '<span>' + escHtml(roleName) + 's</span><span class="text-grey" style="font-size:0.7rem;margin-left:0.5rem;">' + grouped[roleId].length + '</span>';
+        rosterEl.appendChild(header);
+        for (var ti = 0; ti < grouped[roleId].length; ti++) {
+          rosterEl.appendChild(this.createEmployeeCard(grouped[roleId][ti]));
+        }
       }
     }
 

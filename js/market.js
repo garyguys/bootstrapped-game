@@ -101,6 +101,14 @@ var COMPETITOR_ARCHETYPES = [
 
 var _nextCompetitorId = 1;
 
+function restoreCompetitorIdCounter() {
+  var maxId = 0;
+  for (var i = 0; i < G.competitors.length; i++) {
+    if (G.competitors[i].id >= maxId) maxId = G.competitors[i].id;
+  }
+  _nextCompetitorId = maxId + 1;
+}
+
 function initMarket() {
   G.competitors = [];
   G.acquiredStartups = [];

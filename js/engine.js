@@ -396,9 +396,10 @@ function startNewDay() {
   // Generate candidates if job was posted
   if (G.jobPosted) {
     G.jobPosted = false;
-    generateCandidatesForPosting();
+    var newHires = generateCandidatesForPosting();
     addLog('NEW CANDIDATES: Applicants have arrived for your job posting! Check the Team tab.', 'good');
     G.overnightEvents.push('Job applicants have arrived! Check the Candidates section.');
+    G._newCandidateNotification = newHires;
   }
 
   // Add morning log
@@ -467,6 +468,34 @@ function startNewDay() {
     pChoices.appendChild(pBtn);
     pModal.style.display = 'flex';
     G._poachNotification = null;
+  }
+
+  // New candidates notification popup
+  if (G._newCandidateNotification && G._newCandidateNotification.length > 0) {
+    var cands = G._newCandidateNotification;
+    var cModal = document.getElementById('event-modal');
+    document.getElementById('event-modal-title').textContent = 'NEW CANDIDATES!';
+    var cHtml = '<span style="color:var(--green)">' + cands.length + ' applicants have responded to your job posting:</span><br><br>';
+    for (var ci = 0; ci < cands.length; ci++) {
+      var cd = cands[ci];
+      cHtml += '<div class="negotiation-row"><span>' + escHtml(cd.name) + '</span><span>' + escHtml(cd.levelName + ' ' + cd.role.name) + '</span></div>';
+    }
+    cHtml += '<br><span style="color:var(--grey-light)">Interview them in the Team tab to learn more.</span>';
+    document.getElementById('event-modal-desc').innerHTML = cHtml;
+    var cChoices = document.getElementById('event-modal-choices');
+    cChoices.innerHTML = '';
+    var cBtn = document.createElement('button');
+    cBtn.className = 'btn btn-primary btn-small';
+    cBtn.textContent = 'VIEW CANDIDATES';
+    cBtn.onclick = function() { cModal.style.display = 'none'; UI.switchTab('team'); };
+    cChoices.appendChild(cBtn);
+    var cBtn2 = document.createElement('button');
+    cBtn2.className = 'btn btn-secondary btn-small';
+    cBtn2.textContent = 'LATER';
+    cBtn2.onclick = function() { cModal.style.display = 'none'; };
+    cChoices.appendChild(cBtn2);
+    cModal.style.display = 'flex';
+    G._newCandidateNotification = null;
   }
 }
 
