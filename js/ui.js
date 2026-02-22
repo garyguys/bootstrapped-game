@@ -450,36 +450,56 @@ var UI = {
   },
 
   // --- Team Assignment Modal ---
-  showAssignModal: function(project) {
+  _assignOrder: null, // Cached sort order for stable positions
+
+  showAssignModal: function(project, keepOrder) {
     var modal = document.getElementById('event-modal');
     var title = document.getElementById('event-modal-title');
     var desc = document.getElementById('event-modal-desc');
     var choices = document.getElementById('event-modal-choices');
 
+    var ROLE_COLORS = { developer: 'var(--green)', designer: '#b060d0', devops: 'var(--amber)', pm: 'var(--cyan)', sales: '#6090e0', marketer: '#d0c040' };
+    var roleLabels = { developer: 'DEV', designer: 'DES', devops: 'OPS', pm: 'PM', sales: 'SAL', marketer: 'MKT' };
+
     title.textContent = 'ASSIGN TEAM TO ' + project.name;
-    desc.textContent = 'Any team member can contribute. Devs/Designers lead progress. Sales boosts payout. Marketing boosts rep on delivery.';
+    desc.innerHTML = 'Any team member can contribute. ' +
+      '<span style="color:' + ROLE_COLORS.developer + '">Devs</span>/<span style="color:' + ROLE_COLORS.designer + '">Designers</span> lead progress. ' +
+      '<span style="color:' + ROLE_COLORS.sales + '">Sales</span> boosts payout. ' +
+      '<span style="color:' + ROLE_COLORS.marketer + '">Marketing</span> boosts rep on delivery.';
     choices.innerHTML = '';
 
-    var roleLabels = { developer: 'DEV', designer: 'DES', devops: 'OPS', pm: 'PM', sales: 'SAL', marketer: 'MKT' };
     var assignedTeam = project.assignedTeam || [];
 
-    // Sort: assigned-here first, then unassigned, then assigned-elsewhere
-    var sortedTeam = G.team.slice().sort(function(a, b) {
-      var aHere = (assignedTeam.indexOf(a.id) !== -1) ? 0 : 1;
-      var bHere = (assignedTeam.indexOf(b.id) !== -1) ? 0 : 1;
-      if (aHere !== bHere) return aHere - bHere;
-      var aElse = (a.assignedProjectId || a.assignedProductId) ? 1 : 0;
-      var bElse = (b.assignedProjectId || b.assignedProductId) ? 1 : 0;
-      return aElse - bElse;
-    });
+    // Sort once on first open, cache order for stable positions
+    if (!keepOrder || !this._assignOrder) {
+      this._assignOrder = G.team.slice().sort(function(a, b) {
+        var aHere = (assignedTeam.indexOf(a.id) !== -1) ? 0 : 1;
+        var bHere = (assignedTeam.indexOf(b.id) !== -1) ? 0 : 1;
+        if (aHere !== bHere) return aHere - bHere;
+        var aElse = (a.assignedProjectId || a.assignedProductId) ? 1 : 0;
+        var bElse = (b.assignedProjectId || b.assignedProductId) ? 1 : 0;
+        return aElse - bElse;
+      }).map(function(e) { return e.id; });
+    }
 
-    for (var i = 0; i < sortedTeam.length; i++) {
-      var emp = sortedTeam[i];
+    // Build list in cached order
+    var orderedTeam = [];
+    for (var oi = 0; oi < this._assignOrder.length; oi++) {
+      var found = findEmployee(this._assignOrder[oi]);
+      if (found) orderedTeam.push(found);
+    }
+    // Add any new members not in cached order
+    for (var ni = 0; ni < G.team.length; ni++) {
+      if (this._assignOrder.indexOf(G.team[ni].id) === -1) orderedTeam.push(G.team[ni]);
+    }
+
+    for (var i = 0; i < orderedTeam.length; i++) {
+      var emp = orderedTeam[i];
 
       var isAssigned = assignedTeam.indexOf(emp.id) !== -1;
       var roleLabel = roleLabels[emp.role.id] || emp.role.id.toUpperCase().slice(0, 3);
+      var roleColor = ROLE_COLORS[emp.role.id] || 'var(--grey-light)';
 
-      // v0.09: Show current assignment status
       var assignStatus = '';
       if (!isAssigned && emp.assignedProjectId) {
         var onProj = G.activeProjects.find(function(p) { return p.id === emp.assignedProjectId; });
@@ -491,8 +511,10 @@ var UI = {
       }
 
       var btn = document.createElement('button');
-      btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
-      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' [' + roleLabel + '] TEC:' + emp.technical + assignStatus;
+      btn.className = 'btn btn-small btn-secondary';
+      if (isAssigned) btn.style.borderColor = 'var(--cyan)';
+      var checkmark = isAssigned ? '<span style="color:var(--cyan)">[X]</span> ' : '[ ] ';
+      btn.innerHTML = checkmark + escHtml(emp.name) + ' <span style="color:' + roleColor + '">[' + roleLabel + ']</span> TEC:' + emp.technical + escHtml(assignStatus);
       btn.onclick = (function(empId, projId, assigned) {
         return function(e) {
           e.stopPropagation();
@@ -504,7 +526,7 @@ var UI = {
           } else {
             assignToProject(empId, projId);
           }
-          UI.showAssignModal(project); // Refresh
+          UI.showAssignModal(project, true); // Refresh with stable order
         };
       })(emp.id, project.id, isAssigned);
       choices.appendChild(btn);
@@ -515,6 +537,7 @@ var UI = {
     btnDone.textContent = 'DONE';
     btnDone.onclick = function() {
       modal.style.display = 'none';
+      UI._assignOrder = null; // Clear cached order
       UI.renderAll();
     };
     choices.appendChild(btnDone);
@@ -735,7 +758,7 @@ var UI = {
         '<div class="person-avatar-slot" data-person-id="c' + c.id + '"></div>' +
         '<div class="person-info">' +
           '<div class="project-card-header">' +
-            '<span class="project-name">' + escHtml(c.name) + '</span>' +
+            '<span class="project-name">' + escHtml(c.name) + (c.isDiamond ? ' <span style="color:#60c0e0" title="Diamond in the rough — exceptional hidden talent">\u25C6</span>' : '') + '</span>' +
             '<span class="candidate-role">' + escHtml(c.levelName + ' ' + c.role.name) + '</span>' +
           '</div>' +
           '<div class="project-meta">Asking: $' + c.salary + '/wk' + marketLabel + waitLabel + '</div>' +
@@ -862,26 +885,22 @@ var UI = {
       }
     }
 
+    // Acquisitions are now inline on competitor cards — hide separate section
     if (acqEl) {
-      var acquirable = getAcquirableStartups();
-      if (acquirable.length === 0) {
-        acqEl.innerHTML = '<div class="empty-state">No startups available for acquisition.</div>';
-      } else {
-        acqEl.innerHTML = '';
-        for (var j = 0; j < acquirable.length; j++) {
-          acqEl.appendChild(this.createAcquisitionCard(acquirable[j]));
-        }
-      }
+      acqEl.parentNode.style.display = 'none';
     }
 
+    // Market news — only show today's events, at top of market tab
+    var newsSection = document.getElementById('market-news-section');
     if (newsEl) {
-      if (G.marketEvents.length === 0) {
-        newsEl.innerHTML = '<div class="empty-state">No market news yet.</div>';
+      var todayEvents = G.marketEvents.filter(function(ev) { return ev.day === G.day || ev.day === G.day - 1; });
+      if (todayEvents.length === 0) {
+        if (newsSection) newsSection.style.display = 'none';
       } else {
+        if (newsSection) newsSection.style.display = 'block';
         newsEl.innerHTML = '';
-        var showCount = Math.min(G.marketEvents.length, 8);
-        for (var k = G.marketEvents.length - 1; k >= G.marketEvents.length - showCount; k--) {
-          var ev = G.marketEvents[k];
+        for (var k = todayEvents.length - 1; k >= 0; k--) {
+          var ev = todayEvents[k];
           var div = document.createElement('div');
           div.className = 'event-item';
           div.innerHTML = '<span class="log-time">Day ' + ev.day + '</span> ' + escHtml(ev.text);
@@ -932,8 +951,10 @@ var UI = {
         }
 
         var poachBtn = '';
-        if (t.willingToLeave !== false || (comp.scoutLevel || 1) < 3) {
-          poachBtn = ' <button class="btn btn-small btn-secondary poach-btn" onclick="event.stopPropagation();actionPoach(' + comp.id + ',' + t.id + ')">POACH (' + AP_COSTS.poach + ' AP)</button>';
+        if (comp.isPartner) {
+          poachBtn = ' <span style="color:var(--grey);font-size:0.65rem;">(no-poach agreement)</span>';
+        } else if (t.willingToLeave !== false || (comp.scoutLevel || 1) < 3) {
+          poachBtn = ' <button class="btn btn-small btn-secondary poach-btn" onclick="event.stopPropagation();actionPoach(\'' + comp.id + '\',\'' + t.id + '\')">POACH (' + AP_COSTS.poach + ' AP)</button>';
         }
 
         scoutHtml += '<div class="comp-team-member">' + memberInfo + poachBtn + '</div>';
@@ -944,7 +965,7 @@ var UI = {
     card.innerHTML =
       '<div class="project-card-header">' +
         '<span class="project-name">' + escHtml(comp.name) + '</span>' +
-        '<span class="' + (styleClass[comp.style] || '') + '" style="font-size:0.65rem;">' + (styleLabel[comp.style] || comp.style) + '</span>' +
+        '<span class="' + (styleClass[comp.style] || '') + '" style="font-size:0.65rem;">' + (styleLabel[comp.style] || comp.style) + (comp.isPartner ? ' <span style="color:var(--cyan)">PARTNER</span>' : '') + '</span>' +
       '</div>' +
       '<div class="project-meta">' + escHtml(comp.desc) + '</div>' +
       '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Share: ' + Math.round(comp.share) + ' &mdash; Rep: ' + (comp.reputation || 0) + '</div>' +
@@ -971,6 +992,35 @@ var UI = {
       btnScout.disabled = !canAct(AP_COSTS.scout);
       btnScout.onclick = (function(id) { return function() { actionScout(id); }; })(comp.id);
       actionsDiv.appendChild(btnScout);
+    }
+
+    // Acquire button (inline on card)
+    var playerShare = typeof getPlayerMarketShare === 'function' ? getPlayerMarketShare().player : 0;
+    var canAcquireThis = comp.share < 10 || comp.share < playerShare;
+    if (canAcquireThis) {
+      var acqCost = typeof getAcquisitionCost === 'function' ? getAcquisitionCost(comp) : 50000;
+      var btnAcq = document.createElement('button');
+      btnAcq.className = 'btn btn-primary btn-small';
+      btnAcq.textContent = 'ACQUIRE ($' + acqCost.toLocaleString() + ', ' + AP_COSTS.acquire + ' AP)';
+      btnAcq.disabled = !canAct(AP_COSTS.acquire) || G.cash < acqCost;
+      btnAcq.onclick = (function(id) { return function() { actionAcquire(id); }; })(comp.id);
+      actionsDiv.appendChild(btnAcq);
+    }
+
+    // Partnership button (not available if already partner or acquired)
+    if (!comp.isPartner) {
+      var partCost = typeof getPartnershipCost === 'function' ? getPartnershipCost(comp) : 10000;
+      var btnPart = document.createElement('button');
+      btnPart.className = 'btn btn-secondary btn-small';
+      btnPart.textContent = 'PARTNERSHIP ($' + partCost.toLocaleString() + ', 2 AP)';
+      btnPart.disabled = !canAct(2) || G.cash < partCost;
+      btnPart.onclick = (function(id) { return function() { actionPartnership(id); }; })(comp.id);
+      actionsDiv.appendChild(btnPart);
+    } else {
+      var partBadge = document.createElement('span');
+      partBadge.style.cssText = 'color:var(--cyan);font-size:0.7rem;margin-left:0.5rem;';
+      partBadge.textContent = 'PARTNER';
+      actionsDiv.appendChild(partBadge);
     }
 
     return card;
@@ -1024,23 +1074,26 @@ var UI = {
     var foodEl = document.getElementById('shop-food');
     foodEl.innerHTML = '';
 
-    var foodSpeedPerk = G.perks.find(function(p) { return p.id === 'food_speed'; });
+    var foodSpeedPerk = null;
+    for (var fp = 0; fp < G.perks.length; fp++) {
+      if (G.perks[fp].id === 'food_speed') { foodSpeedPerk = G.perks[fp]; break; }
+    }
     if (!G.foodPurchasedToday) G.foodPurchasedToday = {};
 
     for (var i = 0; i < FOOD_ITEMS.length; i++) {
       (function(item) {
         var cost = getFoodCost(item);
-        var buffActive = !!(item.buff && foodSpeedPerk);
+        var buffBlocked = !!(item.buff && foodSpeedPerk && foodSpeedPerk.value >= item.buff.value);
         var itemOrderedToday = G.foodPurchasedToday[item.id] >= G.day;
         var retreatCD = item.retreatBonus && (G.day - (G.lastRetreatDay || -99)) < 14;
         var retreatDaysLeft = retreatCD ? (14 - (G.day - (G.lastRetreatDay || -99))) : 0;
         var disabledReason = itemOrderedToday ? 'Already had ' + item.name + ' today'
-          : buffActive ? 'Buff active (' + foodSpeedPerk.daysLeft + 'd left)'
+          : buffBlocked ? 'Same/stronger buff active (' + foodSpeedPerk.name + ', ' + foodSpeedPerk.daysLeft + 'd)'
           : retreatCD ? 'Cooldown: ' + retreatDaysLeft + ' day(s)'
           : '';
         var btn = document.createElement('button');
         btn.className = 'action-btn';
-        btn.disabled = G.cash < cost || itemOrderedToday || buffActive || retreatCD;
+        btn.disabled = G.cash < cost || itemOrderedToday || buffBlocked || retreatCD;
         btn.innerHTML =
           '<div>' +
             '<span class="action-name">' + escHtml(item.name) + '</span>' +
@@ -1377,35 +1430,56 @@ var UI = {
     modal.style.display = 'flex';
   },
 
-  showProductAssignModal: function(product) {
+  _prodAssignOrder: null, // Cached sort order for product assign modal
+
+  showProductAssignModal: function(product, keepOrder) {
     var modal = document.getElementById('event-modal');
     var title = document.getElementById('event-modal-title');
     var desc = document.getElementById('event-modal-desc');
     var choices = document.getElementById('event-modal-choices');
 
+    var ROLE_COLORS = { developer: 'var(--green)', designer: '#b060d0', devops: 'var(--amber)', pm: 'var(--cyan)', sales: '#6090e0', marketer: '#d0c040' };
+    var roleLabels = { developer: 'DEV', designer: 'DES', devops: 'OPS', pm: 'PM', sales: 'SAL', marketer: 'MKT' };
+
     title.textContent = 'ASSIGN TEAM — ' + product.name;
-    desc.textContent = 'Assign team members to maintain/develop this product. Developers, designers, and devops contribute.';
+    desc.innerHTML = 'Assign team to maintain/develop this product. ' +
+      '<span style="color:' + ROLE_COLORS.developer + '">Developers</span>, ' +
+      '<span style="color:' + ROLE_COLORS.designer + '">Designers</span>, and ' +
+      '<span style="color:' + ROLE_COLORS.devops + '">DevOps</span> contribute.';
     choices.innerHTML = '';
 
     var devRoles = ['developer', 'designer', 'devops'];
     var prodAssignedTeam = product.assignedTeam || [];
     var devTeam = G.team.filter(function(e) { return devRoles.indexOf(e.role.id) !== -1; });
 
-    // Sort: assigned-here first, then unassigned, then assigned-elsewhere
-    devTeam.sort(function(a, b) {
-      var aHere = (prodAssignedTeam.indexOf(a.id) !== -1) ? 0 : 1;
-      var bHere = (prodAssignedTeam.indexOf(b.id) !== -1) ? 0 : 1;
-      if (aHere !== bHere) return aHere - bHere;
-      var aElse = (a.assignedProjectId || a.assignedProductId) ? 1 : 0;
-      var bElse = (b.assignedProjectId || b.assignedProductId) ? 1 : 0;
-      return aElse - bElse;
-    });
+    // Sort once on first open, cache order for stable positions
+    if (!keepOrder || !this._prodAssignOrder) {
+      this._prodAssignOrder = devTeam.slice().sort(function(a, b) {
+        var aHere = (prodAssignedTeam.indexOf(a.id) !== -1) ? 0 : 1;
+        var bHere = (prodAssignedTeam.indexOf(b.id) !== -1) ? 0 : 1;
+        if (aHere !== bHere) return aHere - bHere;
+        var aElse = (a.assignedProjectId || a.assignedProductId) ? 1 : 0;
+        var bElse = (b.assignedProjectId || b.assignedProductId) ? 1 : 0;
+        return aElse - bElse;
+      }).map(function(e) { return e.id; });
+    }
 
-    for (var i = 0; i < devTeam.length; i++) {
-      var emp = devTeam[i];
+    // Build in cached order
+    var orderedTeam = [];
+    for (var oi = 0; oi < this._prodAssignOrder.length; oi++) {
+      var found = findEmployee(this._prodAssignOrder[oi]);
+      if (found && devRoles.indexOf(found.role.id) !== -1) orderedTeam.push(found);
+    }
+    for (var ni = 0; ni < devTeam.length; ni++) {
+      if (this._prodAssignOrder.indexOf(devTeam[ni].id) === -1) orderedTeam.push(devTeam[ni]);
+    }
+
+    for (var i = 0; i < orderedTeam.length; i++) {
+      var emp = orderedTeam[i];
       var isAssigned = prodAssignedTeam.indexOf(emp.id) !== -1;
+      var roleLabel = roleLabels[emp.role.id] || emp.role.id.toUpperCase().slice(0, 3);
+      var roleColor = ROLE_COLORS[emp.role.id] || 'var(--grey-light)';
 
-      // v0.09: Show current assignment status
       var prodAssignStatus = '';
       if (!isAssigned && emp.assignedProjectId) {
         var onProj2 = G.activeProjects.find(function(p) { return p.id === emp.assignedProjectId; });
@@ -1417,8 +1491,10 @@ var UI = {
       }
 
       var btn = document.createElement('button');
-      btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
-      btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' (TEC:' + emp.technical + ')' + prodAssignStatus;
+      btn.className = 'btn btn-small btn-secondary';
+      if (isAssigned) btn.style.borderColor = 'var(--cyan)';
+      var checkmark = isAssigned ? '<span style="color:var(--cyan)">[X]</span> ' : '[ ] ';
+      btn.innerHTML = checkmark + escHtml(emp.name) + ' <span style="color:' + roleColor + '">[' + roleLabel + ']</span> TEC:' + emp.technical + escHtml(prodAssignStatus);
       btn.onclick = (function(empId, prodId, assigned) {
         return function(e) {
           e.stopPropagation();
@@ -1427,7 +1503,7 @@ var UI = {
           setTimeout(function() { _assignInProgress = false; }, 200);
           if (assigned) unassignFromProduct(empId);
           else assignToProduct(empId, prodId);
-          UI.showProductAssignModal(product);
+          UI.showProductAssignModal(product, true); // Stable order
         };
       })(emp.id, product.id, isAssigned);
       choices.appendChild(btn);
@@ -1436,7 +1512,11 @@ var UI = {
     var btnDone = document.createElement('button');
     btnDone.className = 'btn btn-danger btn-small';
     btnDone.textContent = 'DONE';
-    btnDone.onclick = function() { modal.style.display = 'none'; UI.renderAll(); };
+    btnDone.onclick = function() {
+      modal.style.display = 'none';
+      UI._prodAssignOrder = null;
+      UI.renderAll();
+    };
     choices.appendChild(btnDone);
 
     modal.style.display = 'flex';

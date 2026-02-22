@@ -437,3 +437,38 @@ function showAcquisitionPoachModal() {
 
   modal.style.display = 'flex';
 }
+
+// --- Strategic Partnership ---
+function getPartnershipCost(competitor) {
+  return Math.round(competitor.share * 1000 + 5000);
+}
+
+function formPartnership(competitorId) {
+  var target = null;
+  for (var i = 0; i < G.competitors.length; i++) {
+    if (G.competitors[i].id === competitorId) { target = G.competitors[i]; break; }
+  }
+  if (!target || !target.alive) return false;
+
+  var cost = getPartnershipCost(target);
+  if (G.cash < cost) {
+    addLog('Can\'t afford partnership with ' + target.name + '. Need $' + cost.toLocaleString() + '.', 'bad');
+    return false;
+  }
+
+  G.cash -= cost;
+  recordTransaction('expense', 'operations', cost, 'Partnership: ' + target.name);
+
+  // Rep gain based on competitor's reputation
+  var targetRep = target.reputation || Math.round(target.share * 4);
+  var repGain = Math.max(3, Math.round(targetRep / 5));
+  G.reputation += repGain;
+
+  // Mutual no-poach: mark partner
+  target.isPartner = true;
+  target.partnerDay = G.day;
+
+  addLog('Strategic partnership with ' + target.name + '! +' + repGain + ' rep. Mutual no-poach agreement.', 'good');
+  G.marketEvents.push({ day: G.day, text: 'New partnership: You + ' + target.name });
+  return true;
+}

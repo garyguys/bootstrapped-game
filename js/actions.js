@@ -278,6 +278,24 @@ function actionAcquire(competitorId) {
   });
 }
 
+// --- Action: Strategic Partnership (2 AP) ---
+
+function actionPartnership(competitorId) {
+  if (!canAct(2)) return;
+
+  var success = formPartnership(competitorId);
+  if (!success) return;
+
+  spendAP(2);
+  spendEnergy(10);
+
+  var comp = null;
+  for (var i = 0; i < G.competitors.length; i++) {
+    if (G.competitors[i].id === competitorId) { comp = G.competitors[i]; break; }
+  }
+  confirmThenAfterAction('Partnership formed with ' + (comp ? comp.name : 'competitor') + '!', 'good');
+}
+
 // --- Action: Scout competitor ---
 
 function actionScout(competitorId) {
@@ -453,10 +471,16 @@ function actionOrderFood(foodId) {
     return;
   }
 
-  // Buff items require existing buff to expire first
-  if (item.buff && G.perks.some(function(p) { return p.id === 'food_speed'; })) {
-    addLog('Speed buff still active. Wait for it to expire.', 'warn');
-    return;
+  // Buff items: block only if current buff is same tier or higher
+  if (item.buff) {
+    var existingBuff = null;
+    for (var b = 0; b < G.perks.length; b++) {
+      if (G.perks[b].id === 'food_speed') { existingBuff = G.perks[b]; break; }
+    }
+    if (existingBuff && existingBuff.value >= item.buff.value) {
+      addLog('A stronger or equal speed buff is already active (' + existingBuff.name + ', ' + existingBuff.daysLeft + 'd left). Try a higher tier!', 'warn');
+      return;
+    }
   }
 
   var cost = getFoodCost(item);

@@ -171,10 +171,24 @@ function generateCandidate() {
     reliability = Math.min(10, reliability + 1);
   }
 
+  // Diamond in the rough: 8% chance for junior/mid candidates to have one exceptional skill (8-9)
+  var isDiamond = false;
+  if (level <= 2 && Math.random() < 0.08) {
+    isDiamond = true;
+    var diamondSkill = randomChoice(['technical', 'communication', 'reliability']);
+    var diamondVal = randomInt(8, 9);
+    if (diamondSkill === 'technical') technical = diamondVal;
+    else if (diamondSkill === 'communication') communication = diamondVal;
+    else reliability = diamondVal;
+  }
+
   // Base weekly salary
   var salaryBase = [200, 400, 700];
   var salary = salaryBase[level - 1] + randomInt(-50, 100);
   salary = Math.round(salary / 25) * 25;
+
+  // Diamond candidates are slightly cheaper (they don't know their worth yet)
+  if (isDiamond) salary = Math.round(salary * 0.85 / 25) * 25;
 
   // Market modifier
   var marketMod = getMarketSalaryModifier();
@@ -194,6 +208,11 @@ function generateCandidate() {
   if (technical === 10 || communication === 10 || reliability === 10) {
     salary = randomInt(50000, 80000);
     salary = Math.round(salary / 1000) * 1000;
+  }
+  // High skills (8-9) non-diamond still cost more
+  else if (!isDiamond && (technical >= 8 || communication >= 8 || reliability >= 8)) {
+    salary = Math.max(salary, randomInt(1500, 4000));
+    salary = Math.round(salary / 25) * 25;
   }
 
   // Hidden patience for negotiation (1-5, higher = more patient)
@@ -222,6 +241,8 @@ function generateCandidate() {
     arrivedDay: G.day, // For withdrawal timer
     workHistory: generateWorkHistory(level, role.id),
     assignedProjectId: null, // Which project they're assigned to
+    isDiamond: isDiamond, // Diamond in the rough — exceptional skill at low salary
+    skillXP: { technical: 0, communication: 0, reliability: 0 }, // Hidden XP for skill growth
   };
 }
 
@@ -468,6 +489,29 @@ var ROLE_PROJECT_CONTRIB = {
   sales:     0.5,   // minor contribution
   marketer:  0.5,   // minor contribution
 };
+
+// --- Employee Skill Growth from Work ---
+function grantWorkXP(emp) {
+  if (!emp.skillXP) emp.skillXP = { technical: 0, communication: 0, reliability: 0 };
+
+  // Primary skill based on role
+  var primarySkill = 'technical';
+  if (emp.role.id === 'sales' || emp.role.id === 'marketer') primarySkill = 'communication';
+  else if (emp.role.id === 'pm') primarySkill = 'reliability';
+
+  // Grant XP (diamonds learn 2x faster)
+  var xpGain = emp.isDiamond ? 2 : 1;
+  emp.skillXP[primarySkill] += xpGain;
+
+  // XP threshold: 12 per skill point (takes ~12 work days per +1)
+  var threshold = 12;
+  if (emp.skillXP[primarySkill] >= threshold && emp[primarySkill] < 10) {
+    emp.skillXP[primarySkill] = 0;
+    emp[primarySkill] += 1;
+    addLog(emp.name + '\'s ' + primarySkill + ' improved to ' + emp[primarySkill] + '/10 from work experience!', 'good');
+    G.overnightEvents.push(emp.name + ': ' + primarySkill + ' ' + (emp[primarySkill] - 1) + ' \u2192 ' + emp[primarySkill]);
+  }
+}
 
 function getTeamProjectBonus(project) {
   var bonus = 0;

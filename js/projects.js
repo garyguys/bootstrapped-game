@@ -56,15 +56,26 @@ function generateClientName() {
 
 function generateProject() {
   var maxComplexity = 1.5;
-  if (G.stage === 'home_office') maxComplexity = 2;
-  else if (G.stage === 'startup')    maxComplexity = 2.5;
-  else if (G.stage === 'seed_stage') maxComplexity = 3;
-  else if (G.stage === 'series_a')   maxComplexity = 4;
-  else if (G.stage === 'growth' || G.stage === 'enterprise' || G.stage === 'leader') maxComplexity = 5;
+  var minComplexity = 0;
+  if (G.stage === 'home_office') { maxComplexity = 2; minComplexity = 0; }
+  else if (G.stage === 'startup')    { maxComplexity = 2.5; minComplexity = 1; }
+  else if (G.stage === 'seed_stage') { maxComplexity = 3; minComplexity = 1.5; }
+  else if (G.stage === 'series_a')   { maxComplexity = 4; minComplexity = 2; }
+  else if (G.stage === 'growth')     { maxComplexity = 5; minComplexity = 2.5; }
+  else if (G.stage === 'enterprise' || G.stage === 'leader') { maxComplexity = 5; minComplexity = 3; }
 
   var available = PROJECT_TEMPLATES.filter(function(t) {
     return t.complexity <= maxComplexity && G.reputation >= t.minRep;
   });
+
+  // Weight toward higher-complexity projects at later stages
+  // 30% chance to allow a below-minimum project through (keeps some variety)
+  if (minComplexity > 0 && available.length > 1) {
+    var preferred = available.filter(function(t) { return t.complexity >= minComplexity; });
+    if (preferred.length > 0 && Math.random() > 0.3) {
+      available = preferred;
+    }
+  }
 
   var template = randomChoice(available);
   var payout = randomInt(template.payMin, template.payMax);
@@ -208,6 +219,13 @@ function advanceProjects() {
     var teamBonus = getTeamProjectBonus(p);
     if (teamBonus > 0) {
       p.progress = Math.min(100, p.progress + teamBonus);
+      // Award skill XP to assigned team members
+      if (p.assignedTeam) {
+        for (var xi = 0; xi < p.assignedTeam.length; xi++) {
+          var xEmp = findEmployee(p.assignedTeam[xi]);
+          if (xEmp) grantWorkXP(xEmp);
+        }
+      }
     }
 
     // Check overdue warnings
@@ -526,6 +544,11 @@ function tickProducts() {
     if (p.status === 'building') {
       if (p.assignedTeam && p.assignedTeam.length > 0) {
         p.devDaysWorked = (p.devDaysWorked || 0) + p.assignedTeam.length;
+        // Award skill XP to product team
+        for (var bxi = 0; bxi < p.assignedTeam.length; bxi++) {
+          var bxEmp = findEmployee(p.assignedTeam[bxi]);
+          if (bxEmp) grantWorkXP(bxEmp);
+        }
         if (p.devDaysWorked >= p.devDaysRequired) {
           p.status = 'live';
           p.quality = 75;
@@ -547,6 +570,11 @@ function tickProducts() {
       if (hasTeam) {
         p.quality = Math.max(0, p.quality - 0.5);
         p.marketInterest = Math.min(100, p.marketInterest + 0.2);
+        // Award skill XP to live product team
+        for (var lxi = 0; lxi < p.assignedTeam.length; lxi++) {
+          var lxEmp = findEmployee(p.assignedTeam[lxi]);
+          if (lxEmp) grantWorkXP(lxEmp);
+        }
       } else {
         p.quality = Math.max(0, p.quality - 3);
         p.marketInterest = Math.max(0, p.marketInterest - 1);

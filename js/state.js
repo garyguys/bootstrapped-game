@@ -192,6 +192,19 @@ function loadGame() {
         if (c.reputation === undefined) c.reputation = Math.round(c.share * 4);
       });
     }
+    // v0.14: Add skillXP and isDiamond to existing team members
+    if (G.team) {
+      G.team.forEach(function(emp) {
+        if (!emp.skillXP) emp.skillXP = { technical: 0, communication: 0, reliability: 0 };
+        if (emp.isDiamond === undefined) emp.isDiamond = false;
+      });
+    }
+    if (G.candidates) {
+      G.candidates.forEach(function(c) {
+        if (!c.skillXP) c.skillXP = { technical: 0, communication: 0, reliability: 0 };
+        if (c.isDiamond === undefined) c.isDiamond = false;
+      });
+    }
     return true;
   } catch (e) {
     console.warn('Load failed:', e);
