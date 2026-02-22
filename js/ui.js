@@ -4,6 +4,31 @@
    team assignment, patience bar, management dash.
    ============================================ */
 
+// --- Upgrade Definitions (global scope for shop + company info) ---
+var UPGRADES = [
+  // Tier 1 (Freelancer+)
+  { id: 'coffee_machine',   name: 'Coffee Machine',        cost: 2500,  apCost: 1, desc: '+10 energy every morning',                         tier: 1, stage: 'freelancer' },
+  { id: 'ping_pong',        name: 'Ping Pong Table',        cost: 3500,  apCost: 1, desc: '+5 energy recovery when sleeping',                 tier: 1, stage: 'freelancer' },
+  { id: 'second_monitor',   name: 'Second Monitor',         cost: 4000,  apCost: 1, desc: 'Founder works 20% faster',                         tier: 1, stage: 'freelancer' },
+  { id: 'premium_software', name: 'Premium Software',       cost: 5500,  apCost: 1, desc: '+5% project progress for all',                     tier: 1, stage: 'freelancer' },
+  { id: 'office_perks',     name: 'Office Perks',           cost: 8000,  apCost: 2, desc: '+15 loyalty for all staff',                        tier: 1, stage: 'freelancer' },
+  { id: 'standing_desk',    name: 'Standing Desk',          cost: 12000, apCost: 1, desc: '+1 AP per day',                                    tier: 1, stage: 'freelancer' },
+  // Tier 2 (Startup+)
+  { id: 'rooftop_terrace',  name: 'Rooftop Terrace',        cost: 22000, apCost: 2, desc: '+20 energy daily, +10 loyalty/week all staff',     tier: 2, stage: 'startup' },
+  { id: 'server_farm',      name: 'Dedicated Server Farm',  cost: 30000, apCost: 2, desc: 'Products generate 25% more revenue',               tier: 2, stage: 'startup' },
+  { id: 'executive_suite',  name: 'Executive Suite',        cost: 45000, apCost: 2, desc: '+2 AP per day',                                    tier: 2, stage: 'startup' },
+  { id: 'automation_tools', name: 'Automation Tools',       cost: 38000, apCost: 2, desc: 'A random active project gains +5% progress/day',   tier: 2, stage: 'startup' },
+  { id: 'recording_studio', name: 'Recording Studio',       cost: 20000, apCost: 2, desc: 'Press releases cost 0 AP',                         tier: 2, stage: 'startup' },
+  // Tier 3 (Series A+)
+  { id: 'ai_copilot',       name: 'AI Copilot',             cost: 60000,  apCost: 3, desc: '+25% solo work speed (stacks with Second Monitor)', tier: 3, stage: 'series_a' },
+  { id: 'employee_gym',     name: 'Employee Gym',           cost: 50000,  apCost: 2, desc: '+10 sleep energy, -1 team energy overhead',        tier: 3, stage: 'series_a' },
+  { id: 'innovation_lab',   name: 'Innovation Lab',         cost: 75000,  apCost: 3, desc: 'Products greenlight in 6 AP instead of 12',        tier: 3, stage: 'series_a' },
+  { id: 'cloud_infra',      name: 'Cloud Infrastructure',   cost: 80000,  apCost: 3, desc: 'All products +50% max revenue',                    tier: 3, stage: 'series_a' },
+  { id: 'private_chef',     name: 'Private Chef',           cost: 40000,  apCost: 2, desc: 'Food costs 50% less, food energy +20%',            tier: 3, stage: 'series_a' },
+];
+
+var _assignInProgress = false;
+
 var UI = {
 
   renderAll: function() {
@@ -420,11 +445,22 @@ var UI = {
     choices.innerHTML = '';
 
     var roleLabels = { developer: 'DEV', designer: 'DES', devops: 'OPS', pm: 'PM', sales: 'SAL', marketer: 'MKT' };
+    var assignedTeam = project.assignedTeam || [];
 
-    for (var i = 0; i < G.team.length; i++) {
-      var emp = G.team[i];
+    // Sort: assigned-here first, then unassigned, then assigned-elsewhere
+    var sortedTeam = G.team.slice().sort(function(a, b) {
+      var aHere = (assignedTeam.indexOf(a.id) !== -1) ? 0 : 1;
+      var bHere = (assignedTeam.indexOf(b.id) !== -1) ? 0 : 1;
+      if (aHere !== bHere) return aHere - bHere;
+      var aElse = (a.assignedProjectId || a.assignedProductId) ? 1 : 0;
+      var bElse = (b.assignedProjectId || b.assignedProductId) ? 1 : 0;
+      return aElse - bElse;
+    });
 
-      var isAssigned = project.assignedTeam && project.assignedTeam.indexOf(emp.id) !== -1;
+    for (var i = 0; i < sortedTeam.length; i++) {
+      var emp = sortedTeam[i];
+
+      var isAssigned = assignedTeam.indexOf(emp.id) !== -1;
       var roleLabel = roleLabels[emp.role.id] || emp.role.id.toUpperCase().slice(0, 3);
 
       // v0.09: Show current assignment status
@@ -442,7 +478,11 @@ var UI = {
       btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
       btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' [' + roleLabel + '] TEC:' + emp.technical + assignStatus;
       btn.onclick = (function(empId, projId, assigned) {
-        return function() {
+        return function(e) {
+          e.stopPropagation();
+          if (_assignInProgress) return;
+          _assignInProgress = true;
+          setTimeout(function() { _assignInProgress = false; }, 200);
           if (assigned) {
             unassignFromProject(empId);
           } else {
@@ -848,7 +888,10 @@ var UI = {
         '<span class="' + (styleClass[comp.style] || '') + '" style="font-size:0.65rem;">' + (styleLabel[comp.style] || comp.style) + '</span>' +
       '</div>' +
       '<div class="project-meta">' + escHtml(comp.desc) + '</div>' +
-      '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Share: ' + Math.round(comp.share) + '</div>' +
+      '<div class="project-meta">Focus: ' + escHtml(comp.focus) + ' &mdash; Share: ' + Math.round(comp.share) + ' &mdash; Rep: ' + (comp.reputation || 0) + '</div>' +
+      ((comp.scoutLevel || 0) >= 2 && comp.products && comp.products.length > 0
+        ? '<div class="project-meta" style="color:var(--cyan)">Products: ' + comp.products.map(function(p) { return escHtml(p.name) + ' (' + p.scope + ', Q:' + (p.quality || 0) + ')'; }).join(', ') + '</div>'
+        : '') +
       scoutHtml +
       '<div class="project-actions"></div>';
 
@@ -929,13 +972,16 @@ var UI = {
       (function(item) {
         var cost = getFoodCost(item);
         var buffActive = !!(item.buff && foodSpeedPerk);
-        var itemOrderedToday = G.foodPurchasedToday[item.id] >= G.day;
+        var itemOrderedToday = !item.multiUse && G.foodPurchasedToday[item.id] >= G.day;
+        var retreatCD = item.retreatBonus && (G.day - (G.lastRetreatDay || -99)) < 14;
+        var retreatDaysLeft = retreatCD ? (14 - (G.day - (G.lastRetreatDay || -99))) : 0;
         var disabledReason = itemOrderedToday ? 'Already had ' + item.name + ' today'
           : buffActive ? 'Buff active (' + foodSpeedPerk.daysLeft + 'd left)'
+          : retreatCD ? 'Cooldown: ' + retreatDaysLeft + ' day(s)'
           : '';
         var btn = document.createElement('button');
         btn.className = 'action-btn';
-        btn.disabled = G.cash < cost || itemOrderedToday || buffActive;
+        btn.disabled = G.cash < cost || itemOrderedToday || buffActive || retreatCD;
         btn.innerHTML =
           '<div>' +
             '<span class="action-name">' + escHtml(item.name) + '</span>' +
@@ -951,81 +997,60 @@ var UI = {
     var upgradesEl = document.getElementById('shop-upgrades');
     upgradesEl.innerHTML = '';
 
-    var UPGRADES = [
-      // Tier 1
-      { id: 'coffee_machine',   name: 'Coffee Machine',        cost: 2500,  apCost: 1, desc: '+10 energy every morning',                         oneTime: true, tier: 1 },
-      { id: 'ping_pong',        name: 'Ping Pong Table',        cost: 3500,  apCost: 1, desc: '+5 energy recovery when sleeping',                 oneTime: true, tier: 1 },
-      { id: 'second_monitor',   name: 'Second Monitor',         cost: 4000,  apCost: 1, desc: 'Founder works 20% faster',                         oneTime: true, tier: 1 },
-      { id: 'premium_software', name: 'Premium Software',       cost: 5500,  apCost: 1, desc: '+5% project progress for all',                     oneTime: true, tier: 1 },
-      { id: 'office_perks',     name: 'Office Perks',           cost: 8000,  apCost: 2, desc: '+15 loyalty for all staff',                        oneTime: true, tier: 1 },
-      { id: 'standing_desk',    name: 'Standing Desk',          cost: 12000, apCost: 1, desc: '+1 AP per day',                                    oneTime: true, tier: 1 },
-      // Tier 2 (visible only when prerequisite is owned)
-      { id: 'rooftop_terrace',  name: 'Rooftop Terrace',        cost: 22000, apCost: 2, desc: '+20 energy daily, +10 loyalty/week all staff',     oneTime: true, tier: 2, requires: 'ping_pong' },
-      { id: 'server_farm',      name: 'Dedicated Server Farm',  cost: 30000, apCost: 2, desc: 'Products generate 25% more revenue',               oneTime: true, tier: 2, requires: 'premium_software' },
-      { id: 'executive_suite',  name: 'Executive Suite',        cost: 45000, apCost: 2, desc: '+2 AP per day',                                    oneTime: true, tier: 2, requires: 'standing_desk' },
-      { id: 'automation_tools', name: 'Automation Tools',       cost: 38000, apCost: 2, desc: 'A random active project gains +5% progress/day',   oneTime: true, tier: 2, requires: 'second_monitor' },
-      { id: 'recording_studio', name: 'Recording Studio',       cost: 20000, apCost: 2, desc: 'Press releases cost 0 AP',                         oneTime: true, tier: 2, requires: 'office_perks' },
-    ];
+    // UPGRADES is defined at global scope (above UI object)
 
     function renderUpgradeBtn(u) {
-      var owned = G.upgrades.indexOf(u.id) !== -1;
       var btn2 = document.createElement('button');
       btn2.className = 'action-btn';
-      btn2.disabled = owned || G.cash < u.cost || !canAct(u.apCost);
+      btn2.disabled = G.cash < u.cost || !canAct(u.apCost);
       btn2.innerHTML =
         '<div>' +
-          '<span class="action-name">' + escHtml(u.name) + (owned ? ' [OWNED]' : '') + '</span>' +
+          '<span class="action-name">' + escHtml(u.name) + '</span>' +
           '<span class="action-desc">' + escHtml(u.desc) + '</span>' +
         '</div>' +
         '<span class="action-cost">$' + u.cost.toLocaleString() + ' &middot; ' + u.apCost + ' AP</span>';
-      if (!owned) {
-        btn2.onclick = (function(upgrade) {
-          return function() {
-            if (G.cash < upgrade.cost || !canAct(upgrade.apCost)) return;
-            G.cash -= upgrade.cost;
-            spendAP(upgrade.apCost);
-            G.upgrades.push(upgrade.id);
-            recordTransaction('expense', 'upgrade', upgrade.cost, 'Upgrade: ' + upgrade.name);
-            addLog('Purchased: ' + upgrade.name + '!', 'good');
-            if (upgrade.id === 'office_perks') {
-              for (var k = 0; k < G.team.length; k++) {
-                G.team[k].loyalty = Math.min(100, G.team[k].loyalty + 15);
-              }
+      btn2.onclick = (function(upgrade) {
+        return function() {
+          if (G.cash < upgrade.cost || !canAct(upgrade.apCost)) return;
+          G.cash -= upgrade.cost;
+          spendAP(upgrade.apCost);
+          G.upgrades.push(upgrade.id);
+          recordTransaction('expense', 'upgrade', upgrade.cost, 'Upgrade: ' + upgrade.name);
+          addLog('Purchased: ' + upgrade.name + '!', 'good');
+          if (upgrade.id === 'office_perks') {
+            for (var k = 0; k < G.team.length; k++) {
+              G.team[k].loyalty = Math.min(100, G.team[k].loyalty + 15);
             }
-            showActionConfirmation('Purchased ' + upgrade.name + '!', 'good', function() {
-              UI.renderAll();
-            });
-          };
-        })(u);
-      }
+          }
+          showActionConfirmation('Purchased ' + upgrade.name + '!', 'good', function() {
+            UI.renderAll();
+          });
+        };
+      })(u);
       return btn2;
     }
 
-    // Render Tier 1
-    var t1Header = document.createElement('div');
-    t1Header.className = 'shop-tier-header';
-    t1Header.textContent = 'OFFICE UPGRADES';
-    upgradesEl.appendChild(t1Header);
-    for (var j = 0; j < UPGRADES.length; j++) {
-      if (UPGRADES[j].tier === 1) upgradesEl.appendChild(renderUpgradeBtn(UPGRADES[j]));
-    }
-
-    // Render Tier 2 — only show if prerequisite owned
-    var anyTier2 = false;
-    for (var jt = 0; jt < UPGRADES.length; jt++) {
-      if (UPGRADES[jt].tier === 2 && G.upgrades.indexOf(UPGRADES[jt].requires) !== -1) { anyTier2 = true; break; }
-    }
-    if (anyTier2) {
-      var t2Header = document.createElement('div');
-      t2Header.className = 'shop-tier-header';
-      t2Header.style.marginTop = '14px';
-      t2Header.textContent = 'TIER 2 UPGRADES';
-      upgradesEl.appendChild(t2Header);
-      for (var jj = 0; jj < UPGRADES.length; jj++) {
-        var u2 = UPGRADES[jj];
-        if (u2.tier === 2 && G.upgrades.indexOf(u2.requires) !== -1) {
-          upgradesEl.appendChild(renderUpgradeBtn(u2));
-        }
+    // Render upgrades by tier, gated by stage progression (skip owned)
+    var tierConfigs = [
+      { tier: 1, label: 'OFFICE UPGRADES', stage: 'freelancer' },
+      { tier: 2, label: 'TIER 2 UPGRADES (Startup+)', stage: 'startup' },
+      { tier: 3, label: 'TIER 3 UPGRADES (Series A+)', stage: 'series_a' },
+    ];
+    for (var tc = 0; tc < tierConfigs.length; tc++) {
+      var cfg = tierConfigs[tc];
+      if (!hasReachedStage(cfg.stage)) continue;
+      // Collect unowned upgrades for this tier
+      var tierUpgrades = UPGRADES.filter(function(u) {
+        return u.tier === cfg.tier && G.upgrades.indexOf(u.id) === -1;
+      });
+      if (tierUpgrades.length === 0) continue;
+      var tHeader = document.createElement('div');
+      tHeader.className = 'shop-tier-header';
+      if (tc > 0) tHeader.style.marginTop = '14px';
+      tHeader.textContent = cfg.label;
+      upgradesEl.appendChild(tHeader);
+      for (var tu = 0; tu < tierUpgrades.length; tu++) {
+        upgradesEl.appendChild(renderUpgradeBtn(tierUpgrades[tu]));
       }
     }
 
@@ -1115,9 +1140,14 @@ var UI = {
       }
     }
 
-    var teamHtml = assignedNames.length > 0
-      ? '<div class="project-assigned">Team: ' + escHtml(assignedNames.join(', ')) + '</div>'
-      : '<div class="project-assigned" style="color:var(--amber)">No team assigned — quality decaying!</div>';
+    var teamHtml = '';
+    if (assignedNames.length > 0) {
+      teamHtml = '<div class="project-assigned">Team: ' + escHtml(assignedNames.join(', ')) + '</div>';
+    } else if (product.status === 'live') {
+      teamHtml = '<div class="project-assigned" style="color:var(--amber)">No team assigned — quality decaying!</div>';
+    } else {
+      teamHtml = '<div class="project-assigned" style="color:var(--grey)">No team assigned yet</div>';
+    }
 
     var progressHtml = '';
     if (product.status === 'greenlight') {
@@ -1142,7 +1172,9 @@ var UI = {
         '<span class="project-name">' + escHtml(product.name) + '</span>' +
         '<span style="color:' + (statusColor[product.status] || 'var(--grey)') + ';font-size:0.65rem;">' + (statusLabel[product.status] || product.status) + '</span>' +
       '</div>' +
-      '<div class="project-meta">' + escHtml(product.typeName) + ' &mdash; ' + escHtml(product.scopeName) + ' scale &mdash; Invested: $' + product.investment.toLocaleString() + '</div>' +
+      '<div class="project-meta">' + escHtml(product.typeName) + ' &mdash; ' + escHtml(product.scopeName) + ' scale &mdash; Invested: $' + product.investment.toLocaleString() +
+        ((product.status === 'live' || product.status === 'dead') ? ' | Lifetime: $' + (product.totalRevenue || 0).toLocaleString() + ' | <span style="color:' + ((product.totalRevenue || 0) - product.investment >= 0 ? 'var(--green)' : 'var(--red)') + '">Net: $' + ((product.totalRevenue || 0) - product.investment).toLocaleString() + '</span>' : '') +
+      '</div>' +
       (product.status !== 'dead' ? teamHtml : '') +
       progressHtml + qualityHtml +
       (product.status !== 'dead' ? '<div class="project-actions-row"></div><div class="project-actions-dropdown" style="display:none;"></div>' : '');
@@ -1282,10 +1314,22 @@ var UI = {
     choices.innerHTML = '';
 
     var devRoles = ['developer', 'designer', 'devops'];
-    for (var i = 0; i < G.team.length; i++) {
-      var emp = G.team[i];
-      if (devRoles.indexOf(emp.role.id) === -1) continue;
-      var isAssigned = product.assignedTeam && product.assignedTeam.indexOf(emp.id) !== -1;
+    var prodAssignedTeam = product.assignedTeam || [];
+    var devTeam = G.team.filter(function(e) { return devRoles.indexOf(e.role.id) !== -1; });
+
+    // Sort: assigned-here first, then unassigned, then assigned-elsewhere
+    devTeam.sort(function(a, b) {
+      var aHere = (prodAssignedTeam.indexOf(a.id) !== -1) ? 0 : 1;
+      var bHere = (prodAssignedTeam.indexOf(b.id) !== -1) ? 0 : 1;
+      if (aHere !== bHere) return aHere - bHere;
+      var aElse = (a.assignedProjectId || a.assignedProductId) ? 1 : 0;
+      var bElse = (b.assignedProjectId || b.assignedProductId) ? 1 : 0;
+      return aElse - bElse;
+    });
+
+    for (var i = 0; i < devTeam.length; i++) {
+      var emp = devTeam[i];
+      var isAssigned = prodAssignedTeam.indexOf(emp.id) !== -1;
 
       // v0.09: Show current assignment status
       var prodAssignStatus = '';
@@ -1302,7 +1346,11 @@ var UI = {
       btn.className = 'btn btn-small ' + (isAssigned ? 'btn-primary' : 'btn-secondary');
       btn.textContent = (isAssigned ? '[X] ' : '[ ] ') + emp.name + ' (TEC:' + emp.technical + ')' + prodAssignStatus;
       btn.onclick = (function(empId, prodId, assigned) {
-        return function() {
+        return function(e) {
+          e.stopPropagation();
+          if (_assignInProgress) return;
+          _assignInProgress = true;
+          setTimeout(function() { _assignInProgress = false; }, 200);
           if (assigned) unassignFromProduct(empId);
           else assignToProduct(empId, prodId);
           UI.showProductAssignModal(product);
@@ -1576,6 +1624,14 @@ function showCompanyModal() {
       '<div class="negotiation-row"><span>' + escHtml(G.player.name) + '</span><span style="color:var(--grey-light)">Founder & CEO</span></div>' +
       '<div style="margin-top:0.4rem;">' + UI.skillBar('TEC', G.player.technical, 10) + UI.skillBar('COM', G.player.communication, 10) + UI.skillBar('REL', G.player.reliability, 10) + '</div>' +
     '</div>' +
+
+    (G.upgrades.length > 0 ? '<div class="help-block">' +
+      '<h4 class="help-heading">OWNED UPGRADES (' + G.upgrades.length + ')</h4>' +
+      G.upgrades.map(function(uid) {
+        var uData = UPGRADES.find(function(u) { return u.id === uid; });
+        return uData ? '<div class="negotiation-row"><span>' + escHtml(uData.name) + '</span><span style="color:var(--grey-light);font-size:0.7rem">' + escHtml(uData.desc) + '</span></div>' : '';
+      }).join('') +
+    '</div>' : '') +
 
     '<div class="help-block">' +
       '<h4 class="help-heading">TEAM (' + G.team.length + ')</h4>' +

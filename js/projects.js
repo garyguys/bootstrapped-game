@@ -182,6 +182,9 @@ function workOnProject(projectId) {
   if (G.upgrades.indexOf('second_monitor') !== -1) {
     advance = Math.round(advance * 1.2);
   }
+  if (G.upgrades.indexOf('ai_copilot') !== -1) {
+    advance = Math.round(advance * 1.25);
+  }
 
   if (G.energy < 25) advance = Math.round(advance * 0.75);
   else if (G.energy < 50) advance = Math.round(advance * 0.9);
@@ -417,7 +420,7 @@ function createOwnProduct(typeId, scopeId, productName) {
     devDaysRequired: devDays,
     devDaysWorked: 0,
     apInvested: 0,
-    apRequired: 12,
+    apRequired: (G.upgrades.indexOf('innovation_lab') !== -1) ? 6 : 12,
     quality: 0,       // 0-100 quality once live
     maxRevenue: maxRevenue,
     status: 'greenlight', // 'greenlight' | 'building' | 'live' | 'dead'
@@ -440,8 +443,10 @@ function workOnOwnProduct(productId) {
   }
   if (!product || product.status !== 'building') return false;
 
-  product.devDaysWorked = (product.devDaysWorked || 0) + 1;
-  addLog('Worked on "' + product.name + '" — ' + product.devDaysWorked + '/' + product.devDaysRequired + ' dev days.', 'good');
+  var devAdvance = 1;
+  if (G.upgrades.indexOf('ai_copilot') !== -1) devAdvance = Math.round(devAdvance * 1.25 * 100) / 100;
+  product.devDaysWorked = (product.devDaysWorked || 0) + devAdvance;
+  addLog('Worked on "' + product.name + '" — ' + Math.floor(product.devDaysWorked) + '/' + product.devDaysRequired + ' dev days.', 'good');
 
   if (product.devDaysWorked >= product.devDaysRequired) {
     product.status = 'live';
@@ -551,6 +556,7 @@ function tickProducts() {
       if (p.quality > 0) {
         var revenue = Math.round((p.quality / 100) * (p.marketInterest / 100) * p.maxRevenue);
         if (G.upgrades && G.upgrades.indexOf('server_farm') !== -1) revenue = Math.round(revenue * 1.25);
+        if (G.upgrades && G.upgrades.indexOf('cloud_infra') !== -1) revenue = Math.round(revenue * 1.5);
         G.cash += revenue;
         G.totalRevenue += revenue;
         p.totalRevenue += revenue;
@@ -627,6 +633,25 @@ function getProductMarketBonus() {
     }
   }
   return bonus;
+}
+
+// Generate products for a competitor based on their style
+function generateCompetitorProducts(style) {
+  var countByStyle = { niche: [1, 2], vc_funded: [1, 3], megacorp: [2, 4], budget: [0, 1] };
+  var range = countByStyle[style] || [1, 2];
+  var count = randomInt(range[0], range[1]);
+  var products = [];
+  for (var i = 0; i < count; i++) {
+    var type = randomChoice(OWN_PRODUCT_TYPES);
+    var scope = randomChoice(OWN_PRODUCT_SCOPES);
+    products.push({
+      name: type.name + ' ' + (i + 1),
+      type: type.id,
+      scope: scope.id,
+      quality: randomInt(30, 80),
+    });
+  }
+  return products;
 }
 
 function agePipelineLeads() {

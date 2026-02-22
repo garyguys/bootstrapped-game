@@ -80,12 +80,13 @@ var DAY_EVENTS = [
     weight: 2,
     getProject: function() { return randomChoice(G.activeProjects); },
     choices: [
-      { text: 'Accept upsell (+$500, +15% scope)', effect: function(project) {
+      { text: 'Accept upsell (+25% payout, -15% progress)', effect: function(project) {
         if (!project) project = randomChoice(G.activeProjects);
-        project.payout += 500;
+        var upsellAmount = Math.max(200, Math.min(5000, Math.round(project.payout * 0.25)));
+        project.payout += upsellAmount;
         project.progress = Math.max(0, project.progress - 15);
-        addLog('Upsold ' + project.client + ' on ' + project.name + '. +$500 but scope expanded.', 'good');
-        return 'Upsold ' + project.client + ' on ' + project.name + '. +$500 but -15% progress.';
+        addLog('Upsold ' + project.client + ' on ' + project.name + '. +$' + upsellAmount + ' but scope expanded.', 'good');
+        return 'Upsold ' + project.client + ' on ' + project.name + '. +$' + upsellAmount + ' but -15% progress.';
       } },
       { text: 'Decline politely (+2 rep)', effect: function() {
         G.reputation += 2;
@@ -813,6 +814,16 @@ var OVERNIGHT_EVENTS = [
       // 25% chance a random employee actually leaves
       if (Math.random() < 0.25) {
         var victim = randomChoice(G.team);
+        // Store poach notification for morning popup
+        G._poachNotification = {
+          name: victim.name,
+          role: victim.role.name,
+          technical: victim.technical,
+          communication: victim.communication,
+          reliability: victim.reliability,
+          loyalty: Math.round(victim.loyalty),
+          salary: victim.salary,
+        };
         G.team = G.team.filter(function(e) { return e.id !== victim.id; });
         for (var p = 0; p < G.activeProjects.length; p++) {
           if (G.activeProjects[p].assignedTeam) {

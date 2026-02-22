@@ -596,6 +596,80 @@ function unassignFromProject(employeeId) {
   emp.assignedProjectId = null;
 }
 
+// --- Auto-Assign Team ---
+// Smart auto-assign: only touches UNASSIGNED team members
+function autoAssignTeam() {
+  var assignments = [];
+  var unassigned = G.team.filter(function(e) {
+    return !e.assignedProjectId && !e.assignedProductId;
+  });
+  if (unassigned.length === 0) return assignments;
+
+  // 1. Sort active projects by deadline urgency (closest deadline first)
+  var needyProjects = G.activeProjects.filter(function(p) {
+    return p.progress < 100;
+  }).sort(function(a, b) {
+    return (a.daysToComplete - a.daysActive) - (b.daysToComplete - b.daysActive);
+  });
+
+  // Assign to projects
+  for (var i = 0; i < needyProjects.length; i++) {
+    if (unassigned.length === 0) break;
+    var proj = needyProjects[i];
+    // Skip if project already has team assigned
+    if (proj.assignedTeam && proj.assignedTeam.length > 0) continue;
+
+    // Find best available member by technical * roleMultiplier, bonus for role match
+    var bestIdx = -1;
+    var bestScore = -1;
+    for (var j = 0; j < unassigned.length; j++) {
+      var emp = unassigned[j];
+      var roleMult = ROLE_PROJECT_CONTRIB[emp.role.id] || 1.0;
+      var score = emp.technical * roleMult;
+      if (proj.requiredRole && emp.role.id === proj.requiredRole) score += 5;
+      if (score > bestScore) { bestScore = score; bestIdx = j; }
+    }
+    if (bestIdx >= 0) {
+      var chosen = unassigned[bestIdx];
+      assignToProject(chosen.id, proj.id);
+      assignments.push(chosen.name + ' -> ' + proj.name);
+      unassigned.splice(bestIdx, 1);
+    }
+  }
+
+  // 2. Sort live/building products by quality (lowest first)
+  var needyProducts = (G.ownedProducts || []).filter(function(p) {
+    return (p.status === 'live' || p.status === 'building') &&
+           (!p.assignedTeam || p.assignedTeam.length === 0);
+  }).sort(function(a, b) {
+    return (a.quality || 0) - (b.quality || 0);
+  });
+
+  // Assign remaining unassigned dev-role members to products
+  for (var k = 0; k < needyProducts.length; k++) {
+    if (unassigned.length === 0) break;
+    var product = needyProducts[k];
+    var devIdx = -1;
+    var devScore = -1;
+    for (var m = 0; m < unassigned.length; m++) {
+      var devEmp = unassigned[m];
+      var devRoleMult = ROLE_PROJECT_CONTRIB[devEmp.role.id] || 1.0;
+      if (devRoleMult >= 1.5) { // prefer dev-oriented roles
+        var s = devEmp.technical * devRoleMult;
+        if (s > devScore) { devScore = s; devIdx = m; }
+      }
+    }
+    if (devIdx >= 0) {
+      var devChosen = unassigned[devIdx];
+      assignToProduct(devChosen.id, product.id);
+      assignments.push(devChosen.name + ' -> "' + product.name + '"');
+      unassigned.splice(devIdx, 1);
+    }
+  }
+
+  return assignments;
+}
+
 // Scouting AP thresholds by company style (AP spends required per scout level)
 var SCOUT_THRESHOLDS = {
   megacorp:  [0, 8, 16, 24], // 8 AP per level

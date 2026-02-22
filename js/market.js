@@ -149,13 +149,15 @@ function addCompetitor(archetype) {
     if (G.competitors[i].name === archetype.name) return false;
   }
 
+  var share = archetype.shareBase + randomInt(-2, 2);
+  var products = (typeof generateCompetitorProducts === 'function') ? generateCompetitorProducts(archetype.style) : [];
   G.competitors.push({
     id: _nextCompetitorId++,
     name: archetype.name,
     style: archetype.style,
     desc: archetype.desc,
     focus: archetype.focus,
-    share: archetype.shareBase + randomInt(-2, 2),
+    share: share,
     growthRate: archetype.growthRate,
     failChance: archetype.failChance,
     canAcquire: archetype.canAcquire,
@@ -168,6 +170,8 @@ function addCompetitor(archetype) {
     scoutLevel: 0,
     scoutProgress: 0,
     scoutedTeam: null,
+    products: products,
+    reputation: Math.round(share * 4),
   });
   return true;
 }
@@ -313,9 +317,47 @@ function acquireStartup(competitorId) {
   G.cash -= cost;
   target.alive = false;
 
-  G.reputation += Math.floor(target.share * 2);
-  var bonusRep = Math.floor(target.share * 1.5);
-  G.reputation += bonusRep;
+  // Rep gain = 1/3 of competitor's reputation
+  var targetRep = target.reputation || Math.round(target.share * 4);
+  var repGain = Math.round(targetRep / 3);
+  G.reputation += repGain;
+
+  // Transfer competitor products to player portfolio
+  var transferredProducts = [];
+  if (target.products && target.products.length > 0) {
+    for (var j = 0; j < target.products.length; j++) {
+      var cp = target.products[j];
+      var scope = OWN_PRODUCT_SCOPES ? OWN_PRODUCT_SCOPES.find(function(s) { return s.id === cp.scope; }) : null;
+      var transferredProduct = {
+        id: G.nextProductId++,
+        name: cp.name + ' (acq.)',
+        type: cp.type,
+        typeName: cp.name,
+        scope: cp.scope,
+        scopeName: scope ? scope.name : cp.scope,
+        investment: 0,
+        devDaysRequired: 0,
+        devDaysWorked: 0,
+        apInvested: 0,
+        apRequired: 0,
+        quality: Math.round((cp.quality || 50) * 0.8), // -20% quality loss
+        maxRevenue: scope ? randomInt(scope.revenueMin, scope.revenueMax) : 200,
+        status: 'live',
+        assignedTeam: [],
+        daysLive: 1,
+        totalRevenue: 0,
+        marketInterest: 50,
+      };
+      G.ownedProducts.push(transferredProduct);
+      transferredProducts.push(transferredProduct.name);
+      addLog('Acquired product: "' + transferredProduct.name + '" (Quality: ' + transferredProduct.quality + '%)', 'good');
+    }
+  }
+
+  // Set up staff poach modal for after acquisition
+  if (target.scoutedTeam && target.scoutedTeam.length > 0) {
+    G._pendingAcqPoach = { competitorName: target.name, team: target.scoutedTeam };
+  }
 
   G.acquiredStartups.push({
     name: target.name,
@@ -325,9 +367,70 @@ function acquireStartup(competitorId) {
     shareGained: target.share,
   });
 
-  var msg = 'Acquired ' + target.name + '! +' + (Math.floor(target.share * 2) + bonusRep) + ' rep. Their ' + target.focus + ' expertise is now yours.';
+  var msg = 'Acquired ' + target.name + '! +' + repGain + ' rep.';
+  if (transferredProducts.length > 0) msg += ' Gained ' + transferredProducts.length + ' product(s).';
+  msg += ' Their ' + target.focus + ' expertise is now yours.';
   addLog(msg, 'good');
   G.overnightEvents.push(msg);
 
   return true;
+}
+
+// Show modal to recruit staff from acquired competitor
+function showAcquisitionPoachModal() {
+  if (!G._pendingAcqPoach) return;
+  var data = G._pendingAcqPoach;
+  G._pendingAcqPoach = null;
+
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+
+  title.textContent = 'STAFF FROM ' + data.competitorName.toUpperCase();
+
+  var html = '<span style="color:var(--cyan)">Former employees are available for hire:</span><br><br>';
+  for (var i = 0; i < data.team.length; i++) {
+    var emp = data.team[i];
+    var willing = emp.willingToLeave !== false;
+    html += '<div class="negotiation-row" style="opacity:' + (willing ? '1' : '0.4') + '">' +
+      '<span>' + escHtml(emp.name) + ' (' + emp.role.name + ')</span>' +
+      '<span>' + (willing ? 'Available' : 'Not interested') + '</span></div>';
+  }
+
+  desc.innerHTML = html;
+  choices.innerHTML = '';
+
+  // Add buttons for willing employees
+  for (var j = 0; j < data.team.length; j++) {
+    var member = data.team[j];
+    if (member.willingToLeave === false) continue;
+    var btn = document.createElement('button');
+    btn.className = 'btn btn-small btn-primary';
+    btn.textContent = 'NEGOTIATE — ' + member.name;
+    btn.onclick = (function(m) {
+      return function() {
+        modal.style.display = 'none';
+        // Add to candidates and open negotiation
+        m.skillsRevealed = 2;
+        m.isBeingPoached = true;
+        m.patienceUsed = 0;
+        m.patience = randomInt(2, 4);
+        m.salary = Math.round(m.salary * 0.9 / 25) * 25; // 10% discount from acquisition
+        m.askingSalary = m.salary;
+        G.candidates.push(m);
+        addLog(m.name + ' added to candidates from ' + data.competitorName + ' acquisition.', 'good');
+        if (typeof showNegotiationModal === 'function') showNegotiationModal(m);
+      };
+    })(member);
+    choices.appendChild(btn);
+  }
+
+  var btnDone = document.createElement('button');
+  btnDone.className = 'btn btn-small btn-secondary';
+  btnDone.textContent = 'DONE';
+  btnDone.onclick = function() { modal.style.display = 'none'; };
+  choices.appendChild(btnDone);
+
+  modal.style.display = 'flex';
 }

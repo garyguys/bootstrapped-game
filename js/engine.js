@@ -56,7 +56,21 @@ function spendAP(amount) {
 
 function spendEnergy(amount) {
   var overhead = Math.floor(G.team.length * 0.5);
+  // Employee gym: reduce team overhead by 1
+  if (G.upgrades.indexOf('employee_gym') !== -1) overhead = Math.max(0, overhead - 1);
+  // Meal prep: 25% energy discount
+  if (G.mealPrepCharges && G.mealPrepCharges > 0) {
+    amount = Math.round(amount * 0.75);
+    G.mealPrepCharges -= 1;
+    if (G.mealPrepCharges <= 0) addLog('Meal prep charges used up.', 'info');
+  }
   G.energy = Math.max(0, G.energy - (amount + overhead));
+  // Low energy warning (one-shot per day)
+  var threshold = Math.floor(G.energyMax * 0.15);
+  if (G.energy > 0 && G.energy <= threshold && !G.lowEnergyWarned) {
+    G.lowEnergyWarned = true;
+    showActionConfirmation('WARNING: Energy critically low (' + G.energy + '/' + G.energyMax + ')! Consider resting or eating.', 'warn');
+  }
 }
 
 function getEnergyStatus() {
@@ -74,6 +88,7 @@ function checkExhaustedMistake() {
 // Calculate energy recovery for sleeping based on active projects
 function getSleepEnergyRecovery() {
   var base = 75;
+  if (G.upgrades.indexOf('employee_gym') !== -1) base += 10;
   var projectPenalty = G.activeProjects.length * 10;
   var teamOverhead = Math.floor(G.team.length * 2);
   return Math.max(30, base - projectPenalty - teamOverhead);
@@ -171,6 +186,9 @@ function endDaySilent() {
   G.pushedThroughTonight = false;
   G.dayEventFired = false;
   G.pushedLastNight = false;
+  G.lowEnergyWarned = false;
+  G.energyDepletedHandled = false;
+  G.foodPurchasedToday = {};
 
   G.apMax = getBaseAPMax();
   G.apCurrent = G.apMax;
@@ -249,6 +267,43 @@ function showMonthlyRecap() {
   modal.style.display = 'flex';
 }
 
+// --- Weekly Recap (every 7 days, skip when monthly fires) ---
+function showWeeklyRecap() {
+  var weekNum = Math.floor((G.day - 1) / 7);
+  var wStart = (weekNum - 1) * 7 + 1;
+  var wEnd = weekNum * 7;
+  var weekIncome = 0, weekExpenses = 0, weekProjects = 0;
+  for (var i = 0; i < (G.transactions || []).length; i++) {
+    var tx = G.transactions[i];
+    if (tx.day >= wStart && tx.day <= wEnd) {
+      if (tx.type === 'income') weekIncome += tx.amount;
+      else weekExpenses += tx.amount;
+    }
+  }
+  for (var j = 0; j < G.completedProjects.length; j++) {
+    if (G.completedProjects[j].day >= wStart && G.completedProjects[j].day <= wEnd) weekProjects++;
+  }
+  var netPL = weekIncome - weekExpenses;
+  var modal = document.getElementById('event-modal');
+  document.getElementById('event-modal-title').textContent = 'WEEKLY RECAP \u2014 Week ' + weekNum;
+  document.getElementById('event-modal-desc').innerHTML =
+    '<div class="negotiation-row"><span>Revenue</span><span style="color:var(--green)">$' + weekIncome.toLocaleString() + '</span></div>' +
+    '<div class="negotiation-row"><span>Expenses</span><span style="color:var(--red)">-$' + weekExpenses.toLocaleString() + '</span></div>' +
+    '<div class="negotiation-row" style="border-top:1px solid var(--panel-border);padding-top:0.25rem;"><span>Net P&L</span><span style="color:' + (netPL >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (netPL >= 0 ? '+' : '') + '$' + netPL.toLocaleString() + '</span></div>' +
+    '<br>' +
+    '<div class="negotiation-row"><span>Projects Completed</span><span>' + weekProjects + '</span></div>' +
+    '<div class="negotiation-row"><span>Team Size</span><span>' + G.team.length + '</span></div>' +
+    '<div class="negotiation-row"><span>Cash on Hand</span><span style="color:var(--green)">$' + G.cash.toLocaleString() + '</span></div>';
+  var choices = document.getElementById('event-modal-choices');
+  choices.innerHTML = '';
+  var btn = document.createElement('button');
+  btn.className = 'btn btn-primary btn-small';
+  btn.textContent = 'ONWARD!';
+  btn.onclick = function() { modal.style.display = 'none'; };
+  choices.appendChild(btn);
+  modal.style.display = 'flex';
+}
+
 function startNewDay() {
   G.day += 1;
   G.dayOfWeek = (G.dayOfWeek + 1) % 7;
@@ -256,6 +311,9 @@ function startNewDay() {
   G.apUsedToday = 0;
   G.pushedThroughTonight = false;
   G.dayEventFired = false;
+  G.lowEnergyWarned = false;
+  G.energyDepletedHandled = false;
+  G.foodPurchasedToday = {};
 
   // AP reset (includes ops team bonus)
   if (G.pushedLastNight) {
@@ -372,6 +430,11 @@ function startNewDay() {
   UI.renderAll();
   UI.switchTab('dashboard');
 
+  // Weekly recap (every 7 days, skip when monthly fires)
+  if (G.day > 1 && (G.day - 1) % 7 === 0 && (G.day - 1) % 28 !== 0) {
+    showWeeklyRecap();
+  }
+
   // Monthly recap (every 4 weeks)
   if (G.day > 1 && (G.day - 1) % 28 === 0) {
     showMonthlyRecap();
@@ -380,6 +443,30 @@ function startNewDay() {
   // Show project delivery popups
   if (G.deliveryQueue && G.deliveryQueue.length > 0) {
     showNextDeliveryPopup();
+  }
+
+  // Poach notification popup
+  if (G._poachNotification) {
+    var pn = G._poachNotification;
+    var pModal = document.getElementById('event-modal');
+    document.getElementById('event-modal-title').textContent = 'EMPLOYEE POACHED!';
+    document.getElementById('event-modal-desc').innerHTML =
+      '<span style="color:var(--red)">' + escHtml(pn.name) + ' was poached by a competitor!</span><br><br>' +
+      '<div class="negotiation-row"><span>Role</span><span>' + escHtml(pn.role) + '</span></div>' +
+      '<div class="negotiation-row"><span>Technical</span><span>' + pn.technical + '</span></div>' +
+      '<div class="negotiation-row"><span>Communication</span><span>' + pn.communication + '</span></div>' +
+      '<div class="negotiation-row"><span>Reliability</span><span>' + pn.reliability + '</span></div>' +
+      '<div class="negotiation-row"><span>Loyalty</span><span>' + pn.loyalty + '</span></div>' +
+      '<div class="negotiation-row"><span>Salary</span><span>$' + pn.salary.toLocaleString() + '/wk</span></div>';
+    var pChoices = document.getElementById('event-modal-choices');
+    pChoices.innerHTML = '';
+    var pBtn = document.createElement('button');
+    pBtn.className = 'btn btn-primary btn-small';
+    pBtn.textContent = 'NOTED';
+    pBtn.onclick = function() { pModal.style.display = 'none'; };
+    pChoices.appendChild(pBtn);
+    pModal.style.display = 'flex';
+    G._poachNotification = null;
   }
 }
 
@@ -679,8 +766,17 @@ function showNightPushPrompt() {
     UI.renderAll();
   };
 
+  var btnCancel = document.createElement('button');
+  btnCancel.className = 'btn btn-small';
+  btnCancel.style.opacity = '0.7';
+  btnCancel.textContent = 'CANCEL';
+  btnCancel.onclick = function() {
+    modal.style.display = 'none';
+  };
+
   choices.appendChild(btnSleep);
   choices.appendChild(btnPush);
+  choices.appendChild(btnCancel);
 
   modal.style.display = 'flex';
 }

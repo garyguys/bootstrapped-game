@@ -45,6 +45,15 @@ function canAct(apNeeded) {
 
 function afterAction() {
   checkEnergyProjectFailures();
+  // Energy depleted handler
+  if (G.energy <= 0 && !G.energyDepletedHandled) {
+    G.energyDepletedHandled = true;
+    showActionConfirmation('You\'re completely exhausted! The day can\'t continue.', 'bad', function() {
+      showNightPushPrompt();
+    });
+    UI.renderAll();
+    return;
+  }
   checkForDayEvent();
   UI.renderAll();
 }
@@ -74,6 +83,14 @@ function actionWorkProject(projectId) {
 
   spendAP(AP_COSTS.work_project);
   spendEnergy(ENERGY_COSTS.work_project);
+
+  // Passive skill XP from working
+  G.workXPTechnical = (G.workXPTechnical || 0) + 1;
+  if (G.workXPTechnical >= 10 && G.player.technical < 10) {
+    G.player.technical += 1;
+    G.workXPTechnical = 0;
+    addLog('Experience pays off! Technical skill improved to ' + G.player.technical + '/10.', 'good');
+  }
 
   if (checkExhaustedMistake()) {
     addLog('Exhaustion caused a bug... lost some progress.', 'bad');
@@ -139,6 +156,14 @@ function actionClientCall(projectId) {
 
   spendAP(AP_COSTS.client_call);
   spendEnergy(ENERGY_COSTS.client_call);
+
+  // Passive skill XP from client calls
+  G.workXPCommunication = (G.workXPCommunication || 0) + 1;
+  if (G.workXPCommunication >= 10 && G.player.communication < 10) {
+    G.player.communication += 1;
+    G.workXPCommunication = 0;
+    addLog('People skills improving! Communication skill improved to ' + G.player.communication + '/10.', 'good');
+  }
 
   var extensions = 0;
   for (var j = 0; j < G.activeProjects.length; j++) {
@@ -242,7 +267,12 @@ function actionAcquire(competitorId) {
 
   var lastAcq = G.acquiredStartups[G.acquiredStartups.length - 1];
   var compName = lastAcq ? lastAcq.name : 'startup';
-  confirmThenAfterAction('Acquired ' + compName + '!', 'good');
+  showActionConfirmation('Acquired ' + compName + '!', 'good', function() {
+    if (G._pendingAcqPoach && typeof showAcquisitionPoachModal === 'function') {
+      showAcquisitionPoachModal();
+    }
+    afterAction();
+  });
 }
 
 // --- Action: Scout competitor ---
@@ -328,6 +358,15 @@ function actionWorkOnProduct(productId) {
   if (!success) return;
   spendAP(AP_COSTS.work_project);
   spendEnergy(ENERGY_COSTS.work_project);
+
+  // Passive skill XP from working
+  G.workXPTechnical = (G.workXPTechnical || 0) + 1;
+  if (G.workXPTechnical >= 10 && G.player.technical < 10) {
+    G.player.technical += 1;
+    G.workXPTechnical = 0;
+    addLog('Experience pays off! Technical skill improved to ' + G.player.technical + '/10.', 'good');
+  }
+
   var product = G.ownedProducts.find(function(p) { return p.id === productId; });
   var msg;
   if (product && product.status === 'live') {
@@ -374,12 +413,20 @@ var FOOD_ITEMS = [
   { id: 'team_dinner',      name: 'Team Dinner',         baseCost: 350,  energy: 45,  desc: '+45 energy, +5 team loyalty',     buff: null, loyaltyBonus: 5 },
   { id: 'premium_catering', name: 'Premium Catering',    baseCost: 600,  energy: 60,  desc: '+60 energy, +10% speed 2d',       buff: { id: 'food_speed', name: 'Gourmet Boost', desc: '+10% project speed', value: 10, daysLeft: 2 } },
   { id: 'executive_dining', name: 'Executive Dining',    baseCost: 1000, energy: 80,  desc: '+80 energy, +15% speed 3d, +2 rep', buff: { id: 'food_speed', name: 'Executive Fuel', desc: '+15% project speed', value: 15, daysLeft: 3 }, repBonus: 2 },
+  // v0.10 additions
+  { id: 'energy_drink',    name: 'Energy Drink',        baseCost: 30,   energy: 10,  desc: '+10 energy (no daily limit)',         buff: null, multiUse: true },
+  { id: 'smoothie_bar',    name: 'Smoothie Bar',        baseCost: 150,  energy: 30,  desc: '+30 energy',                         buff: null },
+  { id: 'meal_prep',       name: 'Meal Prep Service',   baseCost: 250,  energy: 40,  desc: '+40 energy, next 3 actions cost 25% less energy', buff: null, mealPrep: true },
+  { id: 'corporate_retreat', name: 'Corporate Retreat', baseCost: 2000, energy: 100, desc: '+100 energy, +15 loyalty all (14d cooldown)', buff: null, retreatBonus: true },
 ];
 
 function getFoodCost(item) {
   // Scale cost with company size
   var sizeMult = 1 + (G.team.length * 0.1);
-  return Math.round(item.baseCost * sizeMult / 10) * 10;
+  var cost = Math.round(item.baseCost * sizeMult / 10) * 10;
+  // Private chef: 50% food discount
+  if (G.upgrades.indexOf('private_chef') !== -1) cost = Math.round(cost * 0.5);
+  return cost;
 }
 
 function actionOrderFood(foodId) {
@@ -391,9 +438,17 @@ function actionOrderFood(foodId) {
   if (!item) return;
 
   // Per-item daily cooldown (v0.09: each food item once per day)
+  // Energy drink is multi-use (no daily limit)
   if (!G.foodPurchasedToday) G.foodPurchasedToday = {};
-  if (G.foodPurchasedToday[foodId] >= G.day) {
+  if (!item.multiUse && G.foodPurchasedToday[foodId] >= G.day) {
     addLog('Already had ' + item.name + ' today. Try something else!', 'warn');
+    return;
+  }
+
+  // Corporate retreat: 14-day cooldown
+  if (item.retreatBonus && (G.day - (G.lastRetreatDay || -99)) < 14) {
+    var retreatDays = 14 - (G.day - (G.lastRetreatDay || -99));
+    addLog('Corporate retreat on cooldown. ' + retreatDays + ' day(s) remaining.', 'warn');
     return;
   }
 
@@ -410,9 +465,12 @@ function actionOrderFood(foodId) {
   }
 
   G.cash -= cost;
-  G.foodPurchasedToday[foodId] = G.day;
+  if (!item.multiUse) G.foodPurchasedToday[foodId] = G.day;
   recordTransaction('expense', 'food', cost, item.name);
-  G.energy = Math.min(G.energyMax, G.energy + item.energy);
+  var energyGain = item.energy;
+  // Private chef: +20% food energy
+  if (G.upgrades.indexOf('private_chef') !== -1) energyGain = Math.round(energyGain * 1.2);
+  G.energy = Math.min(G.energyMax, G.energy + energyGain);
 
   // Apply temporary buff
   if (item.buff) {
@@ -441,7 +499,22 @@ function actionOrderFood(foodId) {
     G.reputation += item.repBonus;
   }
 
-  addLog('Ordered ' + item.name + ' (-$' + cost + ', +' + item.energy + ' energy)', 'info');
+  // Meal prep: next 3 actions cost 25% less energy
+  if (item.mealPrep) {
+    G.mealPrepCharges = 3;
+    addLog('Meal prep ready! Next 3 actions cost 25% less energy.', 'good');
+  }
+
+  // Corporate retreat: +15 loyalty all, set cooldown
+  if (item.retreatBonus) {
+    G.lastRetreatDay = G.day;
+    for (var r = 0; r < G.team.length; r++) {
+      G.team[r].loyalty = Math.min(100, G.team[r].loyalty + 15);
+    }
+    addLog('Corporate retreat! Team recharged. +15 loyalty for all.', 'good');
+  }
+
+  addLog('Ordered ' + item.name + ' (-$' + cost + ', +' + energyGain + ' energy)', 'info');
   // No AP spent, just re-render
   UI.renderAll();
 }
@@ -482,8 +555,8 @@ function getTrainingCost(currentLevel) {
   // Exponential scaling: each level costs significantly more
   // Level 1→2: $1,000 | 2→3: $2,500 | 3→4: $5,500 | 4→5: $11,000
   // 5→6: $22,000 | 6→7: $40,000 | 7→8: $70,000 | 8→9: $120,000 | 9→10: $200,000
-  var costs = [0, 1000, 2500, 5500, 11000, 22000, 40000, 70000, 120000, 200000];
-  return costs[currentLevel] || 200000;
+  var costs = [0, 650, 1600, 3600, 7000, 14000, 26000, 45000, 78000, 130000];
+  return costs[currentLevel] || 130000;
 }
 
 function actionTrainSkill(skillName) {
@@ -732,14 +805,14 @@ function getDashboardActions() {
 
   // Team Training Day
   if (G.team.length > 0) {
-    var trainingCD = 21;
+    var trainingCD = 10;
     var trainingAvail = (G.day - (G.lastTrainingDay || -99)) >= trainingCD;
     var trainingCost = 200 * G.team.length;
     if (trainingAvail) {
       actions.push({
         id: 'team_training',
         name: 'Team Training Day',
-        desc: 'Boost all employees skills +1 (random), +10 loyalty ($' + trainingCost.toLocaleString() + ')',
+        desc: 'Boost all skills +1 (incl. you), +10 loyalty ($' + trainingCost.toLocaleString() + ')',
         cost: '2 AP',
         enabled: canAct(2) && G.cash >= trainingCost,
         action: actionTeamTrainingDay,
@@ -776,6 +849,26 @@ function getDashboardActions() {
       cost: '1 AP',
       enabled: false,
       action: function() {},
+    });
+  }
+
+  // Auto-Assign Team
+  if (G.team.length > 0 && (G.activeProjects.length > 0 || (G.ownedProducts && G.ownedProducts.some(function(p) { return p.status === 'live' || p.status === 'building'; })))) {
+    actions.push({
+      id: 'auto_assign',
+      name: 'Auto-Assign Team',
+      desc: 'Smart-assign unassigned members to projects & products',
+      cost: 'Free',
+      enabled: true,
+      action: function() {
+        var assignments = autoAssignTeam();
+        if (assignments.length === 0) {
+          showActionConfirmation('All team members are already assigned!', 'info');
+        } else {
+          showActionConfirmation('Auto-assigned ' + assignments.length + ' member(s):\n' + assignments.join('\n'), 'good');
+        }
+        UI.renderAll();
+      },
     });
   }
 
@@ -824,9 +917,15 @@ function actionTeamTrainingDay() {
     return;
   }
 
-  // Pre-roll skill results for preview
+  // Pre-roll skill results for preview (includes player)
   var skills = ['technical', 'communication', 'reliability'];
   var skillLabels = { technical: 'TEC', communication: 'COM', reliability: 'REL' };
+
+  // Player skill boost
+  var playerAvail = skills.filter(function(s) { return G.player[s] < 10; });
+  var playerSk = randomChoice(playerAvail.length ? playerAvail : skills);
+  var playerResult = { isPlayer: true, skill: playerSk, oldVal: G.player[playerSk], newVal: Math.min(10, G.player[playerSk] + 1) };
+
   var results = G.team.map(function(emp) {
     var available = skills.filter(function(s) { return emp[s] < 10; });
     var sk = randomChoice(available.length ? available : skills);
@@ -835,10 +934,13 @@ function actionTeamTrainingDay() {
 
   var modal = document.getElementById('event-modal');
   document.getElementById('event-modal-title').textContent = 'TEAM TRAINING DAY';
-  var lines = results.map(function(r) {
+
+  var playerLine = escHtml(G.player.name || 'Founder') + ' (You) [FOUNDER]: ' +
+    skillLabels[playerResult.skill] + ' ' + playerResult.oldVal + ' \u2192 ' + playerResult.newVal;
+  var lines = [playerLine].concat(results.map(function(r) {
     return escHtml(r.emp.name) + ' [' + r.emp.role.id.toUpperCase().slice(0, 3) + ']: ' +
       skillLabels[r.skill] + ' ' + r.oldVal + ' \u2192 ' + r.newVal;
-  });
+  }));
   document.getElementById('event-modal-desc').innerHTML =
     'Cost: <span style="color:var(--amber)">$' + cost.toLocaleString() + '</span> | +10 loyalty for all<br><br>' +
     lines.join('<br>');
@@ -856,6 +958,8 @@ function actionTeamTrainingDay() {
   btnConfirm.textContent = 'CONFIRM ($' + cost.toLocaleString() + ')';
   btnConfirm.onclick = function() {
     modal.style.display = 'none';
+    // Apply player skill boost
+    G.player[playerResult.skill] = playerResult.newVal;
     for (var i = 0; i < results.length; i++) {
       results[i].emp[results[i].skill] = results[i].newVal;
       results[i].emp.loyalty = Math.min(100, results[i].emp.loyalty + 10);
@@ -864,7 +968,7 @@ function actionTeamTrainingDay() {
     G.lastTrainingDay = G.day;
     recordTransaction('expense', 'training', cost, 'Team training day');
     spendAP(2);
-    addLog('Team training done! All employees gained +1 skill and +10 loyalty. -$' + cost.toLocaleString() + '.', 'good');
+    addLog('Team training done! Everyone gained +1 skill and +10 loyalty. -$' + cost.toLocaleString() + '.', 'good');
     confirmThenAfterAction('Team training done! +1 skill, +10 loyalty for everyone.', 'good');
   };
 

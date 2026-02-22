@@ -120,6 +120,18 @@ function createDefaultState() {
 
     // Transaction ledger
     transactions: [],  // { day, type: 'income'|'expense', category, amount, description }
+
+    // v0.10: Energy warning flags
+    lowEnergyWarned: false,
+    energyDepletedHandled: false,
+
+    // v0.10: Player skill XP from working
+    workXPTechnical: 0,
+    workXPCommunication: 0,
+
+    // v0.10: Food cooldowns
+    lastRetreatDay: -99,
+    mealPrepCharges: 0,
   };
 }
 
@@ -161,6 +173,21 @@ function loadGame() {
           p.apInvested = 12; p.apRequired = 12;
         }
         if (!p.transactions) p.transactions = undefined; // clean up if somehow nested
+        if (p.totalRevenue === undefined) p.totalRevenue = 0;
+      });
+    }
+    // v0.10 migrations
+    if (!G.lowEnergyWarned) G.lowEnergyWarned = false;
+    if (!G.energyDepletedHandled) G.energyDepletedHandled = false;
+    if (!G.workXPTechnical) G.workXPTechnical = 0;
+    if (!G.workXPCommunication) G.workXPCommunication = 0;
+    if (G.lastRetreatDay === undefined) G.lastRetreatDay = -99;
+    if (G.mealPrepCharges === undefined) G.mealPrepCharges = 0;
+    // Migrate competitors: add products and reputation
+    if (G.competitors) {
+      G.competitors.forEach(function(c) {
+        if (!c.products) c.products = [];
+        if (c.reputation === undefined) c.reputation = Math.round(c.share * 4);
       });
     }
     return true;
@@ -214,6 +241,13 @@ function getStageIndex() {
     if (STAGES[i].id === G.stage) return i;
   }
   return 0;
+}
+
+function hasReachedStage(requiredStageId) {
+  var stageOrder = ['freelancer', 'home_office', 'startup', 'seed_stage', 'series_a', 'growth', 'enterprise', 'leader'];
+  var playerIdx = stageOrder.indexOf(G.stage);
+  var reqIdx = stageOrder.indexOf(requiredStageId);
+  return playerIdx >= reqIdx;
 }
 
 function canPostJob() {
