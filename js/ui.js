@@ -428,6 +428,21 @@ var UI = {
         return function(e) { e.stopPropagation(); UI.showAssignModal(proj); };
       })(project);
       actionsDropdown.appendChild(btnAssign);
+
+      var btnAuto = document.createElement('button');
+      btnAuto.className = 'btn btn-secondary btn-small';
+      btnAuto.textContent = 'AUTO-ASSIGN (Free)';
+      btnAuto.onclick = function(e) {
+        e.stopPropagation();
+        var assignments = autoAssignTeam();
+        if (assignments.length === 0) {
+          showActionConfirmation('All team members are already assigned!', 'info');
+        } else {
+          showActionConfirmation('Auto-assigned ' + assignments.length + ' member(s):\n' + assignments.join('\n'), 'good');
+        }
+        UI.renderAll();
+      };
+      actionsDropdown.appendChild(btnAuto);
     }
 
     return card;
@@ -1264,6 +1279,21 @@ var UI = {
           return function(e) { e.stopPropagation(); UI.showProductAssignModal(prod); };
         })(product);
         actionsDropdown.appendChild(btnAssign);
+
+        var btnAuto = document.createElement('button');
+        btnAuto.className = 'btn btn-secondary btn-small';
+        btnAuto.textContent = 'AUTO-ASSIGN (Free)';
+        btnAuto.onclick = function(e) {
+          e.stopPropagation();
+          var assignments = autoAssignTeam();
+          if (assignments.length === 0) {
+            showActionConfirmation('All team members are already assigned!', 'info');
+          } else {
+            showActionConfirmation('Auto-assigned ' + assignments.length + ' member(s):\n' + assignments.join('\n'), 'good');
+          }
+          UI.renderAll();
+        };
+        actionsDropdown.appendChild(btnAuto);
       }
     }
 

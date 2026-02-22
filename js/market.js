@@ -99,15 +99,7 @@ var COMPETITOR_ARCHETYPES = [
     acqRisks: ['Immature technology', 'High customer expectations'] },
 ];
 
-var _nextCompetitorId = 1;
-
-function restoreCompetitorIdCounter() {
-  var maxId = 0;
-  for (var i = 0; i < G.competitors.length; i++) {
-    if (G.competitors[i].id >= maxId) maxId = G.competitors[i].id;
-  }
-  _nextCompetitorId = maxId + 1;
-}
+// Legacy counter removed — now using uid() from state.js
 
 function initMarket() {
   G.competitors = [];
@@ -160,7 +152,7 @@ function addCompetitor(archetype) {
   var share = archetype.shareBase + randomInt(-2, 2);
   var products = (typeof generateCompetitorProducts === 'function') ? generateCompetitorProducts(archetype.style) : [];
   G.competitors.push({
-    id: _nextCompetitorId++,
+    id: uid('comp'),
     name: archetype.name,
     style: archetype.style,
     desc: archetype.desc,
@@ -297,8 +289,11 @@ function spawnNewCompetitor() {
 // --- Acquisition System ---
 
 function getAcquirableStartups() {
+  var playerShare = getPlayerMarketShare();
   return G.competitors.filter(function(c) {
-    return c.alive && c.style === 'niche' && c.share <= 8;
+    if (!c.alive) return false;
+    if (c.share < 10) return true;
+    return c.share < playerShare;
   });
 }
 

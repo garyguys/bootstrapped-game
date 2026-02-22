@@ -75,7 +75,7 @@ var CANDIDATE_FLAWS = [
   { id: 'secret_slacker', name: '???',             desc: 'Hidden: does 50% less work than stats suggest', effect: 'slacker', value: 0.5 },
 ];
 
-var _nextCandidateId = 1;
+// Legacy counter removed — now using uid() from state.js
 
 // Market salary modifier from competitor ecosystem
 function getMarketSalaryModifier() {
@@ -200,7 +200,7 @@ function generateCandidate() {
   var patience = randomInt(1, 5);
 
   return {
-    id: _nextCandidateId++,
+    id: uid('emp'),
     name: firstName + ' ' + lastName,
     gender: gender,
     role: role,

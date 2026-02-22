@@ -852,26 +852,6 @@ function getDashboardActions() {
     });
   }
 
-  // Auto-Assign Team
-  if (G.team.length > 0 && (G.activeProjects.length > 0 || (G.ownedProducts && G.ownedProducts.some(function(p) { return p.status === 'live' || p.status === 'building'; })))) {
-    actions.push({
-      id: 'auto_assign',
-      name: 'Auto-Assign Team',
-      desc: 'Smart-assign unassigned members to projects & products',
-      cost: 'Free',
-      enabled: true,
-      action: function() {
-        var assignments = autoAssignTeam();
-        if (assignments.length === 0) {
-          showActionConfirmation('All team members are already assigned!', 'info');
-        } else {
-          showActionConfirmation('Auto-assigned ' + assignments.length + ' member(s):\n' + assignments.join('\n'), 'good');
-        }
-        UI.renderAll();
-      },
-    });
-  }
-
   // Take Vacation (requires team)
   if (G.team.length >= 1) {
     actions.push({

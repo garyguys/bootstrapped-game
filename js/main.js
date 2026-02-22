@@ -215,7 +215,6 @@
 
   function continueGame() {
     if (!loadGame()) return;
-    if (typeof restoreCompetitorIdCounter === 'function') restoreCompetitorIdCounter();
     showScreen('screen-game');
     UI.renderAll();
   }

@@ -250,6 +250,12 @@ function hasReachedStage(requiredStageId) {
   return playerIdx >= reqIdx;
 }
 
+var _uidCounter = 0;
+function uid(prefix) {
+  _uidCounter++;
+  return (prefix || 'id') + '_' + Date.now() + '_' + _uidCounter;
+}
+
 function canPostJob() {
   return (G.day - G.lastJobPostDay) >= 7;
 }
