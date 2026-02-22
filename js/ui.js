@@ -1995,8 +1995,8 @@ function showCompanyModal() {
 
     '<div class="help-block">' +
       '<h4 class="help-heading">FOUNDER</h4>' +
-      '<div style="display:flex;gap:0.75rem;align-items:flex-start;">' +
-        '<div id="company-founder-avatar" style="flex-shrink:0;width:48px;height:48px;image-rendering:pixelated;"></div>' +
+      '<div style="display:flex;gap:0.75rem;align-items:center;">' +
+        '<canvas id="company-founder-avatar" width="48" height="48" style="flex-shrink:0;width:48px;height:48px;image-rendering:pixelated;"></canvas>' +
         '<div style="flex:1;">' +
           '<div class="negotiation-row"><span>' + escHtml(G.player.name) + '</span><span style="color:var(--grey-light)">Founder & CEO</span></div>' +
           '<div style="margin-top:0.4rem;">' + UI.skillBar('TEC', G.player.technical, 10) + UI.skillBar('COM', G.player.communication, 10) + UI.skillBar('REL', G.player.reliability, 10) + '</div>' +
@@ -2031,13 +2031,14 @@ function showCompanyModal() {
 
   // Render player avatar into founder section
   setTimeout(function() {
-    var avatarSlot = document.getElementById('company-founder-avatar');
-    if (avatarSlot && typeof AvatarGen !== 'undefined' && G.player) {
-      avatarSlot.innerHTML = '';
-      var canvas = AvatarGen.generate(G.player, 1);
-      avatarSlot.appendChild(canvas);
+    var dest = document.getElementById('company-founder-avatar');
+    if (dest && typeof AvatarGen !== 'undefined' && G.player) {
+      var src = AvatarGen.generate(G.player, 1);
+      var ctx = dest.getContext('2d');
+      ctx.clearRect(0, 0, 48, 48);
+      ctx.drawImage(src, 0, 0);
     }
-  }, 0);
+  }, 50);
 }
 
 // --- Vacation Processing ---
