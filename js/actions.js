@@ -261,21 +261,8 @@ function actionFire(employeeId) {
 
 function actionAcquire(competitorId) {
   if (!canAct(AP_COSTS.acquire)) return;
-
-  var success = acquireStartup(competitorId);
-  if (!success) return;
-
-  spendAP(AP_COSTS.acquire);
-  spendEnergy(ENERGY_COSTS.acquire);
-
-  var lastAcq = G.acquiredStartups[G.acquiredStartups.length - 1];
-  var compName = lastAcq ? lastAcq.name : 'startup';
-  showActionConfirmation('Acquired ' + compName + '!', 'good', function() {
-    if (G._pendingAcqPoach && typeof showAcquisitionPoachModal === 'function') {
-      showAcquisitionPoachModal();
-    }
-    afterAction();
-  });
+  // Open acquisition process modal — AP/energy spent on confirm
+  showAcquisitionProcessModal(competitorId);
 }
 
 // --- Action: Strategic Partnership (2 AP) ---

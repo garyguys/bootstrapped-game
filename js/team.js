@@ -155,9 +155,11 @@ function generateCandidate() {
   var firstName = gender === 'female' ? randomChoice(FEMALE_FIRST_NAMES) : randomChoice(MALE_FIRST_NAMES);
   var lastName = randomChoice(CANDIDATE_LAST_NAMES);
 
-  // Skills rated 1-10, influenced by level
-  var baseMin = level * 2 - 1;
-  var baseMax = level * 2 + 3;
+  // Skills rated 1-10, influenced by level (wider overlap — level = experience, not skill ceiling)
+  // Junior: 1-6, Mid: 2-8, Senior: 3-10
+  var skillRanges = [[1, 6], [2, 8], [3, 10]];
+  var baseMin = skillRanges[level - 1][0];
+  var baseMax = skillRanges[level - 1][1];
   var technical = Math.min(10, randomInt(baseMin, baseMax));
   var communication = Math.min(10, randomInt(Math.max(1, baseMin - 1), baseMax));
   var reliability = Math.min(10, randomInt(baseMin, baseMax));
@@ -204,15 +206,15 @@ function generateCandidate() {
     salary = Math.round(salary * 1.4 / 25) * 25;
   }
 
-  // Perfect-10 skill commands high 5-figure salary
+  // Perfect-10 skill — top tier but capped at $20k/wk
   if (technical === 10 || communication === 10 || reliability === 10) {
-    salary = randomInt(50000, 80000);
-    salary = Math.round(salary / 1000) * 1000;
+    salary = randomInt(8000, 20000);
+    salary = Math.round(salary / 500) * 500;
   }
-  // High skills (8-9) non-diamond still cost more
+  // High skills (8-9) non-diamond command premium salaries
   else if (!isDiamond && (technical >= 8 || communication >= 8 || reliability >= 8)) {
-    salary = Math.max(salary, randomInt(1500, 4000));
-    salary = Math.round(salary / 25) * 25;
+    salary = Math.max(salary, randomInt(13000, 18000));
+    salary = Math.round(salary / 500) * 500;
   }
 
   // Hidden patience for negotiation (1-5, higher = more patient)
@@ -759,24 +761,21 @@ function scoutCompetitor(competitorId) {
       if (comp.style === 'megacorp') {
         member.technical = Math.min(10, member.technical + 3);
         member.communication = Math.min(10, member.communication + 2);
-        // 4-5 figure salaries for megacorp employees
+        // Megacorp salaries (capped at $20k/wk)
         var megaSalary;
         if (member.technical >= 8) {
-          // Top engineers: $20k–$65k/wk
-          megaSalary = randomInt(20000, 65000);
+          megaSalary = randomInt(13000, 20000);
         } else if (member.technical >= 6) {
-          // Mid-senior: $8k–$20k/wk
-          megaSalary = randomInt(8000, 20000);
+          megaSalary = randomInt(5000, 13000);
         } else {
-          // Regular staff: $2k–$8k/wk
-          megaSalary = randomInt(2000, 8000);
+          megaSalary = randomInt(1000, 5000);
         }
         member.salary = Math.round(megaSalary / 100) * 100;
         member.askingSalary = member.salary;
       } else if (comp.style === 'vc_funded') {
         member.technical = Math.min(10, member.technical + 1);
-        // VC-funded: $1.5k–$6k/wk
-        var vcSalary = randomInt(1500, 6000);
+        // VC-funded: $1k–$4k/wk
+        var vcSalary = randomInt(1000, 4000);
         member.salary = Math.round(vcSalary / 100) * 100;
         member.askingSalary = member.salary;
       }

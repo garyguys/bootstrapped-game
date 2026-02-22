@@ -298,38 +298,224 @@ function getAcquirableStartups() {
 }
 
 function getAcquisitionCost(competitor) {
-  var baseCost = 50000;
-  var shareCost = competitor.share * 5000;
-  var ageCost = competitor.daysActive * 200;
-  return Math.max(baseCost, Math.round(baseCost + shareCost + ageCost));
+  // Quadratic scaling: niche ~$50-75k, budget ~$150k, VC ~$500k, megacorp ~$3M
+  var share = competitor.share || 1;
+  var ageCost = (competitor.daysActive || 0) * 100;
+  return Math.round(80 * share * share + 40000 + ageCost);
 }
 
-function acquireStartup(competitorId) {
+// --- Multi-Step Acquisition Process ---
+
+// Generate team for due diligence if not already scouted
+function _generateAcqTeam(comp) {
+  comp.scoutedTeam = [];
+  var teamSize = Math.min(10, Math.max(2, Math.floor(comp.share / 2.5)));
+  for (var j = 0; j < teamSize; j++) {
+    var member = generateCandidate();
+    if (comp.style === 'megacorp') {
+      member.technical = Math.min(10, member.technical + 3);
+      member.communication = Math.min(10, member.communication + 2);
+      var megaSalary;
+      if (member.technical >= 8) megaSalary = randomInt(13000, 20000);
+      else if (member.technical >= 6) megaSalary = randomInt(5000, 13000);
+      else megaSalary = randomInt(1000, 5000);
+      member.salary = Math.round(megaSalary / 100) * 100;
+      member.askingSalary = member.salary;
+    } else if (comp.style === 'vc_funded') {
+      member.technical = Math.min(10, member.technical + 1);
+      var vcSalary = randomInt(1000, 4000);
+      member.salary = Math.round(vcSalary / 100) * 100;
+      member.askingSalary = member.salary;
+    }
+    member.willingToLeave = Math.random() < (comp.style === 'megacorp' ? 0.3 : comp.style === 'vc_funded' ? 0.5 : 0.7);
+    member.scoutLevel = 2;
+    comp.scoutedTeam.push(member);
+  }
+}
+
+// Open the acquisition process modal (Step 1: Products)
+function showAcquisitionProcessModal(competitorId) {
   var target = null;
   for (var i = 0; i < G.competitors.length; i++) {
     if (G.competitors[i].id === competitorId) { target = G.competitors[i]; break; }
   }
-  if (!target || !target.alive) return false;
+  if (!target || !target.alive) return;
 
   var cost = getAcquisitionCost(target);
   if (G.cash < cost) {
     addLog('Can\'t afford to acquire ' + target.name + '. Need $' + cost.toLocaleString() + '.', 'bad');
-    return false;
+    return;
   }
 
+  // Due diligence: generate team if not scouted
+  if (!target.scoutedTeam || target.scoutedTeam.length === 0) {
+    _generateAcqTeam(target);
+  }
+
+  _showAcqStep1(target);
+}
+
+// Step 1: Company overview + product selection
+function _showAcqStep1(target) {
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+  var cost = getAcquisitionCost(target);
+
+  title.textContent = 'ACQUIRE ' + target.name.toUpperCase();
+
+  var styleLabels = { megacorp: 'MEGACORP', vc_funded: 'VC-FUNDED', budget: 'BUDGET', niche: 'NICHE' };
+  var html = '<div style="margin-bottom:8px;">' +
+    '<span style="color:var(--grey)">' + (styleLabels[target.style] || target.style) + '</span>' +
+    ' &mdash; Share: ' + Math.round(target.share) + ' &mdash; Focus: ' + escHtml(target.focus) +
+    '</div>' +
+    '<div style="color:var(--amber);margin-bottom:12px;">Acquisition Cost: <strong>$' + cost.toLocaleString() + '</strong></div>';
+
+  var hasProducts = target.products && target.products.length > 0;
+  if (hasProducts) {
+    html += '<div style="color:var(--cyan);margin-bottom:6px;">SELECT PRODUCTS TO ACQUIRE:</div>';
+    for (var i = 0; i < target.products.length; i++) {
+      var p = target.products[i];
+      var scopeLabel = p.scope.charAt(0).toUpperCase() + p.scope.slice(1);
+      html += '<label style="display:block;padding:5px 4px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+        '<input type="checkbox" checked data-acq-product="' + i + '" style="margin-right:8px;">' +
+        escHtml(p.name) + ' <span style="color:var(--grey)">(' + scopeLabel + ', Q:' + (p.quality || 0) + '%)</span>' +
+        '</label>';
+    }
+  } else {
+    html += '<div style="color:var(--grey);margin-bottom:8px;">No products to acquire.</div>';
+  }
+
+  desc.innerHTML = html;
+  choices.innerHTML = '';
+
+  var hasTeam = target.scoutedTeam && target.scoutedTeam.length > 0;
+  if (hasTeam) {
+    var btnNext = document.createElement('button');
+    btnNext.className = 'btn btn-primary';
+    btnNext.textContent = 'NEXT \u2192 TEAM';
+    btnNext.onclick = function() {
+      var selectedProducts = [];
+      var checks = desc.querySelectorAll('input[data-acq-product]');
+      for (var c = 0; c < checks.length; c++) {
+        if (checks[c].checked) selectedProducts.push(parseInt(checks[c].getAttribute('data-acq-product')));
+      }
+      _showAcqStep2(target, selectedProducts);
+    };
+    choices.appendChild(btnNext);
+  } else {
+    var btnConfirm = document.createElement('button');
+    btnConfirm.className = 'btn btn-primary';
+    btnConfirm.textContent = 'CONFIRM ACQUISITION';
+    btnConfirm.onclick = function() {
+      var selectedProducts = [];
+      var checks = desc.querySelectorAll('input[data-acq-product]');
+      for (var c = 0; c < checks.length; c++) {
+        if (checks[c].checked) selectedProducts.push(parseInt(checks[c].getAttribute('data-acq-product')));
+      }
+      modal.style.display = 'none';
+      executeAcquisition(target, selectedProducts, []);
+    };
+    choices.appendChild(btnConfirm);
+  }
+
+  var btnCancel = document.createElement('button');
+  btnCancel.className = 'btn btn-secondary';
+  btnCancel.textContent = 'CANCEL';
+  btnCancel.onclick = function() { modal.style.display = 'none'; };
+  choices.appendChild(btnCancel);
+
+  modal.style.display = 'flex';
+}
+
+// Step 2: Team member selection
+function _showAcqStep2(target, selectedProducts) {
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+
+  title.textContent = 'ACQUIRE ' + target.name.toUpperCase() + ' \u2014 TEAM';
+
+  var html = '<div style="color:var(--cyan);margin-bottom:6px;">SELECT TEAM MEMBERS TO HIRE:</div>' +
+    '<div style="color:var(--grey);font-size:0.7rem;margin-bottom:8px;">Selected members will be added to your candidate pool for negotiation.</div>';
+
+  for (var i = 0; i < target.scoutedTeam.length; i++) {
+    var emp = target.scoutedTeam[i];
+    var willing = emp.willingToLeave !== false;
+    var opacity = willing ? '1' : '0.5';
+    var willingText = willing ? ' <span style="color:var(--green);font-size:0.65rem;">Available</span>' : ' <span style="color:var(--red);font-size:0.65rem;">Reluctant</span>';
+    html += '<label style="display:block;padding:5px 4px;cursor:' + (willing ? 'pointer' : 'default') + ';border-bottom:1px solid rgba(255,255,255,0.05);opacity:' + opacity + ';">' +
+      '<input type="checkbox"' + (willing ? ' checked' : ' disabled') + ' data-acq-team="' + i + '" style="margin-right:8px;">' +
+      escHtml(emp.name) + ' <span style="color:var(--grey)">(' + emp.levelName + ' ' + emp.role.name + ')</span> ' +
+      'TEC:' + emp.technical + ' COM:' + emp.communication + ' REL:' + emp.reliability +
+      ' <span style="color:var(--amber)">$' + emp.salary.toLocaleString() + '/wk</span>' +
+      willingText +
+      '</label>';
+  }
+
+  desc.innerHTML = html;
+  choices.innerHTML = '';
+
+  var btnConfirm = document.createElement('button');
+  btnConfirm.className = 'btn btn-primary';
+  btnConfirm.textContent = 'CONFIRM ACQUISITION';
+  btnConfirm.onclick = function() {
+    var selectedTeam = [];
+    var checks = desc.querySelectorAll('input[data-acq-team]');
+    for (var c = 0; c < checks.length; c++) {
+      if (checks[c].checked) selectedTeam.push(parseInt(checks[c].getAttribute('data-acq-team')));
+    }
+    modal.style.display = 'none';
+    executeAcquisition(target, selectedProducts, selectedTeam);
+  };
+  choices.appendChild(btnConfirm);
+
+  var btnBack = document.createElement('button');
+  btnBack.className = 'btn btn-secondary';
+  btnBack.textContent = '\u2190 BACK';
+  btnBack.onclick = function() { _showAcqStep1(target); };
+  choices.appendChild(btnBack);
+
+  var btnCancel = document.createElement('button');
+  btnCancel.className = 'btn btn-secondary';
+  btnCancel.textContent = 'CANCEL';
+  btnCancel.onclick = function() { modal.style.display = 'none'; };
+  choices.appendChild(btnCancel);
+
+  modal.style.display = 'flex';
+}
+
+// Execute the acquisition with selected products and team
+function executeAcquisition(target, selectedProductIndices, selectedTeamIndices) {
+  var cost = getAcquisitionCost(target);
+  if (G.cash < cost) {
+    addLog('Can\'t afford to acquire ' + target.name + '.', 'bad');
+    return;
+  }
+
+  // Spend resources
   G.cash -= cost;
+  spendAP(AP_COSTS.acquire);
+  spendEnergy(ENERGY_COSTS.acquire);
   target.alive = false;
+  if (typeof recordTransaction === 'function') {
+    recordTransaction('expense', 'acquisition', cost, 'Acquired ' + target.name);
+  }
 
   // Rep gain = 1/3 of competitor's reputation
   var targetRep = target.reputation || Math.round(target.share * 4);
   var repGain = Math.round(targetRep / 3);
   G.reputation += repGain;
 
-  // Transfer competitor products to player portfolio
+  // Transfer selected products
   var transferredProducts = [];
-  if (target.products && target.products.length > 0) {
-    for (var j = 0; j < target.products.length; j++) {
-      var cp = target.products[j];
+  if (target.products && selectedProductIndices.length > 0) {
+    for (var j = 0; j < selectedProductIndices.length; j++) {
+      var idx = selectedProductIndices[j];
+      if (idx < 0 || idx >= target.products.length) continue;
+      var cp = target.products[idx];
       var scope = OWN_PRODUCT_SCOPES ? OWN_PRODUCT_SCOPES.find(function(s) { return s.id === cp.scope; }) : null;
       var transferredProduct = {
         id: G.nextProductId++,
@@ -343,7 +529,7 @@ function acquireStartup(competitorId) {
         devDaysWorked: 0,
         apInvested: 0,
         apRequired: 0,
-        quality: Math.round((cp.quality || 50) * 0.8), // -20% quality loss
+        quality: Math.round((cp.quality || 50) * 0.8),
         maxRevenue: scope ? randomInt(scope.revenueMin, scope.revenueMax) : 200,
         status: 'live',
         assignedTeam: [],
@@ -357,9 +543,23 @@ function acquireStartup(competitorId) {
     }
   }
 
-  // Set up staff poach modal for after acquisition
-  if (target.scoutedTeam && target.scoutedTeam.length > 0) {
-    G._pendingAcqPoach = { competitorName: target.name, team: target.scoutedTeam };
+  // Add selected team members to candidates
+  var hiredTeam = [];
+  if (target.scoutedTeam && selectedTeamIndices.length > 0) {
+    for (var k = 0; k < selectedTeamIndices.length; k++) {
+      var ti = selectedTeamIndices[k];
+      if (ti < 0 || ti >= target.scoutedTeam.length) continue;
+      var member = target.scoutedTeam[ti];
+      member.skillsRevealed = 2;
+      member.isBeingPoached = true;
+      member.patienceUsed = 0;
+      member.patience = randomInt(2, 4);
+      member.salary = Math.round(member.salary * 0.9 / 25) * 25;
+      member.askingSalary = member.salary;
+      G.candidates.push(member);
+      hiredTeam.push(member);
+      addLog(member.name + ' added to candidates from ' + target.name + ' acquisition.', 'good');
+    }
   }
 
   G.acquiredStartups.push({
@@ -372,70 +572,17 @@ function acquireStartup(competitorId) {
 
   var msg = 'Acquired ' + target.name + '! +' + repGain + ' rep.';
   if (transferredProducts.length > 0) msg += ' Gained ' + transferredProducts.length + ' product(s).';
+  if (hiredTeam.length > 0) msg += ' ' + hiredTeam.length + ' team member(s) available for hire.';
   msg += ' Their ' + target.focus + ' expertise is now yours.';
   addLog(msg, 'good');
   G.overnightEvents.push(msg);
 
-  return true;
-}
-
-// Show modal to recruit staff from acquired competitor
-function showAcquisitionPoachModal() {
-  if (!G._pendingAcqPoach) return;
-  var data = G._pendingAcqPoach;
-  G._pendingAcqPoach = null;
-
-  var modal = document.getElementById('event-modal');
-  var title = document.getElementById('event-modal-title');
-  var desc = document.getElementById('event-modal-desc');
-  var choices = document.getElementById('event-modal-choices');
-
-  title.textContent = 'STAFF FROM ' + data.competitorName.toUpperCase();
-
-  var html = '<span style="color:var(--cyan)">Former employees are available for hire:</span><br><br>';
-  for (var i = 0; i < data.team.length; i++) {
-    var emp = data.team[i];
-    var willing = emp.willingToLeave !== false;
-    html += '<div class="negotiation-row" style="opacity:' + (willing ? '1' : '0.4') + '">' +
-      '<span>' + escHtml(emp.name) + ' (' + emp.role.name + ')</span>' +
-      '<span>' + (willing ? 'Available' : 'Not interested') + '</span></div>';
-  }
-
-  desc.innerHTML = html;
-  choices.innerHTML = '';
-
-  // Add buttons for willing employees
-  for (var j = 0; j < data.team.length; j++) {
-    var member = data.team[j];
-    if (member.willingToLeave === false) continue;
-    var btn = document.createElement('button');
-    btn.className = 'btn btn-small btn-primary';
-    btn.textContent = 'NEGOTIATE — ' + member.name;
-    btn.onclick = (function(m) {
-      return function() {
-        modal.style.display = 'none';
-        // Add to candidates and open negotiation
-        m.skillsRevealed = 2;
-        m.isBeingPoached = true;
-        m.patienceUsed = 0;
-        m.patience = randomInt(2, 4);
-        m.salary = Math.round(m.salary * 0.9 / 25) * 25; // 10% discount from acquisition
-        m.askingSalary = m.salary;
-        G.candidates.push(m);
-        addLog(m.name + ' added to candidates from ' + data.competitorName + ' acquisition.', 'good');
-        if (typeof showNegotiationModal === 'function') showNegotiationModal(m);
-      };
-    })(member);
-    choices.appendChild(btn);
-  }
-
-  var btnDone = document.createElement('button');
-  btnDone.className = 'btn btn-small btn-secondary';
-  btnDone.textContent = 'DONE';
-  btnDone.onclick = function() { modal.style.display = 'none'; };
-  choices.appendChild(btnDone);
-
-  modal.style.display = 'flex';
+  showActionConfirmation(msg, 'good', function() {
+    if (hiredTeam.length > 0 && typeof showNegotiationModal === 'function') {
+      showNegotiationModal(hiredTeam[0]);
+    }
+    afterAction();
+  });
 }
 
 // --- Strategic Partnership ---

@@ -666,12 +666,23 @@ function getProductMarketBonus() {
 // Generate products for a competitor based on their style
 function generateCompetitorProducts(style) {
   var countByStyle = { niche: [1, 2], vc_funded: [1, 3], megacorp: [2, 4], budget: [0, 1] };
+  // Scope restriction: small companies only have small products
+  var scopesByStyle = {
+    niche:     ['small'],
+    budget:    ['small', 'medium'],
+    vc_funded: ['small', 'medium', 'large'],
+    megacorp:  ['small', 'medium', 'large', 'enterprise']
+  };
+  var allowedScopes = scopesByStyle[style] || ['small'];
+  var filteredScopes = OWN_PRODUCT_SCOPES.filter(function(s) {
+    return allowedScopes.indexOf(s.id) !== -1;
+  });
   var range = countByStyle[style] || [1, 2];
   var count = randomInt(range[0], range[1]);
   var products = [];
   for (var i = 0; i < count; i++) {
     var type = randomChoice(OWN_PRODUCT_TYPES);
-    var scope = randomChoice(OWN_PRODUCT_SCOPES);
+    var scope = randomChoice(filteredScopes);
     products.push({
       name: type.name + ' ' + (i + 1),
       type: type.id,
