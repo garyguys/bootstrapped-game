@@ -691,7 +691,7 @@ var UI = {
     setTimeout(function() {
       var slot = card.querySelector('.person-avatar-slot');
       if (slot && typeof AvatarGen !== 'undefined') {
-        var canvas = AvatarGen.generate(emp, 2);
+        var canvas = AvatarGen.generate(emp, 1);
         slot.appendChild(canvas);
       }
     }, 0);
@@ -785,7 +785,7 @@ var UI = {
     setTimeout(function() {
       var slot = card.querySelector('.person-avatar-slot');
       if (slot && typeof AvatarGen !== 'undefined') {
-        var canvas = AvatarGen.generate(c, 2);
+        var canvas = AvatarGen.generate(c, 1);
         slot.appendChild(canvas);
       }
     }, 0);

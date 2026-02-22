@@ -20,7 +20,7 @@
         <button id="btn-new-game" class="btn btn-primary">NEW GAME</button>
         <button id="btn-continue" class="btn btn-secondary" style="display:none;">CONTINUE</button>
       </div>
-      <p class="title-version">v0.16.1</p>
+      <p class="title-version">v0.16.2</p>
     </div>
     <div class="scanline-overlay"></div>
   </div>
@@ -34,16 +34,31 @@
       <div class="create-layout">
         <!-- Left: Avatar Preview -->
         <div class="create-avatar-panel">
-          <canvas id="create-avatar-preview" class="create-preview" width="60" height="84"></canvas>
+          <canvas id="create-avatar-preview" class="create-preview"></canvas>
           <div class="create-picker-row">
-            <button class="btn btn-small btn-secondary" id="sprite-prev">&#9664;</button>
-            <span id="sprite-label">Style A</span>
-            <button class="btn btn-small btn-secondary" id="sprite-next">&#9654;</button>
+            <button class="btn btn-small btn-secondary" id="body-prev">&#9664;</button>
+            <span id="body-label">Male</span>
+            <button class="btn btn-small btn-secondary" id="body-next">&#9654;</button>
           </div>
           <div class="create-picker-row">
             <button class="btn btn-small btn-secondary" id="hair-prev">&#9664;</button>
-            <span id="hair-label">Hair 1</span>
+            <span id="hair-label">short</span>
             <button class="btn btn-small btn-secondary" id="hair-next">&#9654;</button>
+          </div>
+          <div class="create-picker-row">
+            <button class="btn btn-small btn-secondary" id="shirt-style-prev">&#9664;</button>
+            <span id="shirt-style-label">tee</span>
+            <button class="btn btn-small btn-secondary" id="shirt-style-next">&#9654;</button>
+          </div>
+          <div class="create-picker-row">
+            <button class="btn btn-small btn-secondary" id="pants-style-prev">&#9664;</button>
+            <span id="pants-style-label">jeans</span>
+            <button class="btn btn-small btn-secondary" id="pants-style-next">&#9654;</button>
+          </div>
+          <div class="create-picker-row">
+            <button class="btn btn-small btn-secondary" id="acc-prev">&#9664;</button>
+            <span id="acc-label">none</span>
+            <button class="btn btn-small btn-secondary" id="acc-next">&#9654;</button>
           </div>
         </div>
 
@@ -58,16 +73,12 @@
             <input type="text" id="create-company-name" class="create-input" placeholder="My Startup" maxlength="24">
           </div>
           <div class="create-field">
-            <label class="create-label">HAIR COLOR</label>
-            <div id="swatch-hair" class="color-swatches"></div>
-          </div>
-          <div class="create-field">
             <label class="create-label">SKIN TONE</label>
             <div id="swatch-skin" class="color-swatches"></div>
           </div>
           <div class="create-field">
-            <label class="create-label">EYE COLOR</label>
-            <div id="swatch-eyes" class="color-swatches"></div>
+            <label class="create-label">HAIR COLOR</label>
+            <div id="swatch-hair" class="color-swatches"></div>
           </div>
           <div class="create-field">
             <label class="create-label">SHIRT COLOR</label>

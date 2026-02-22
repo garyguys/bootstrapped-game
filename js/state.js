@@ -22,18 +22,20 @@ function createDefaultState() {
     timeSlot: 0,
     dayOfWeek: 0,
 
-    // Player character
+    // Player character (48px sprite system)
     player: {
       name: 'Founder',
       companyName: 'My Startup',
-      spriteStyle: 'a',        // 'a', 'b', 'c', 'd' — sprite body style
-      hairStyle: 0,            // 0-4 — sprite hair variant
-      hairColor: '#5C3A1E',
-      skinColor: '#F5D5B8',
-      shirtColor: '#2D5FA0',
-      pantsColor: '#1a1a3e',
-      eyeColor: '#111111',
-      shoeColor: '#111111',
+      gender: 'male',
+      skinTone: 0,
+      hairStyle: 'short',
+      hairColorIdx: 0,
+      shirtStyle: 'tee',
+      shirtColorIdx: 2,       // Blue
+      pantsStyle: 'jeans',
+      pantsColorIdx: 0,       // Denim
+      shoeColorIdx: 0,        // Black
+      accessory: 'none',
       technical: 0,
       communication: 0,
       reliability: 0,
@@ -211,6 +213,29 @@ function loadGame() {
         if (c.partnerExpiredDay === undefined) c.partnerExpiredDay = 0;
       });
     }
+    // v0.16.2: Migrate player from old hex-color sprite system to new 48px index-based system
+    if (G.player && G.player.spriteStyle !== undefined) {
+      // Old system had spriteStyle 'a','b','c','d' — map 'b' to female
+      G.player.gender = (G.player.spriteStyle === 'b') ? 'female' : 'male';
+      G.player.skinTone = G.player.skinTone !== undefined ? G.player.skinTone : 0;
+      G.player.hairStyle = G.player.hairStyle !== undefined && typeof G.player.hairStyle === 'string' ? G.player.hairStyle : 'short';
+      G.player.hairColorIdx = G.player.hairColorIdx !== undefined ? G.player.hairColorIdx : 0;
+      G.player.shirtStyle = G.player.shirtStyle || 'tee';
+      G.player.shirtColorIdx = G.player.shirtColorIdx !== undefined ? G.player.shirtColorIdx : 2;
+      G.player.pantsStyle = G.player.pantsStyle || 'jeans';
+      G.player.pantsColorIdx = G.player.pantsColorIdx !== undefined ? G.player.pantsColorIdx : 0;
+      G.player.shoeColorIdx = G.player.shoeColorIdx !== undefined ? G.player.shoeColorIdx : 0;
+      G.player.accessory = G.player.accessory || 'none';
+      // Clean up old properties
+      delete G.player.spriteStyle;
+      delete G.player.hairColor;
+      delete G.player.skinColor;
+      delete G.player.shirtColor;
+      delete G.player.pantsColor;
+      delete G.player.eyeColor;
+      delete G.player.shoeColor;
+    }
+    // v0.16.2: Ensure team/candidates have new appearance properties (hash-based fallback in avatars.js handles missing props)
     return true;
   } catch (e) {
     console.warn('Load failed:', e);

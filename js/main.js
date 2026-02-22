@@ -1,48 +1,23 @@
 /* ============================================
    main.js — Game Init, Screen Management
    Character creation on new game.
+   Uses 48px procedural sprite system (v0.16.2)
    ============================================ */
 
 (function() {
 
-  // Character creation color palettes
-  var CC_HAIR = [
-    '#1a1a2e', '#2d1b0e', '#4a2c0a', '#8B4513', '#654321',
-    '#2c1608', '#3d2b1f', '#5c3317', '#704214', '#d4a017',
-    '#c0c0c0', '#e87070', '#0a0a0a', '#aa6622', '#f0e68c',
-  ];
-  var CC_SKIN = [
-    '#FDDBB4', '#F5D5B8', '#E0C0A0', '#D4A574', '#C6956A',
-    '#C08850', '#B8844D', '#8D5524', '#7A4420',
-  ];
-  var CC_SHIRT = [
-    '#2D5FA0', '#2D6B2D', '#6B2D6B', '#8B2020', '#B8860B',
-    '#2D6B6B', '#6B3D2D', '#1a1a3e', '#cc4444', '#44aa44',
-    '#4466cc', '#aa44aa', '#ffffff', '#222222',
-  ];
-  var CC_PANTS = [
-    '#1a1a3e', '#2d2d2d', '#1a3e2d', '#3e1a1a', '#2d3a1a',
-    '#4a3728', '#1a1a1a', '#3d3d5c',
-  ];
-  var CC_EYES = [
-    '#111111', '#2244aa', '#228844', '#664422', '#666666',
-    '#aa4444', '#7744aa',
-  ];
-  var CC_SHOES = [
-    '#111111', '#2d1b0e', '#8B4513', '#1a1a3e', '#cc2222',
-    '#ffffff', '#555555',
-  ];
-
   // Current state of character creation form
   var cc = {
-    spriteStyle: 'a',
-    hairStyle: 0,
-    hairColor: CC_HAIR[0],
-    skinColor: CC_SKIN[0],
-    shirtColor: CC_SHIRT[0],
-    pantsColor: CC_PANTS[0],
-    eyeColor: CC_EYES[0],
-    shoeColor: CC_SHOES[0],
+    bodyType: 'male',
+    skinTone: 0,
+    hairStyleIdx: 0,
+    hairColorIdx: 0,
+    shirtStyleIdx: 0,
+    shirtColorIdx: 0,
+    pantsStyleIdx: 0,
+    pantsColorIdx: 0,
+    shoeColorIdx: 0,
+    accIdx: 0,
     technical: 0,
     communication: 0,
     reliability: 0,
@@ -50,19 +25,29 @@
 
   var SKILL_POOL = 8;
 
+  // Accessory list (all keys from the sprite system)
+  var ALL_ACCESSORIES = ['none', 'glasses', 'headphones', 'cap', 'scarf', 'badge', 'phone', 'watch'];
+
+  function getHairStyles() {
+    return cc.bodyType === 'female' ? AvatarGen.FEMALE_HAIR_STYLES : AvatarGen.MALE_HAIR_STYLES;
+  }
+
   function updateAvatarPreview() {
     var canvas = document.getElementById('create-avatar-preview');
     if (!canvas) return;
+    var hairStyles = getHairStyles();
     var previewState = {
       name: 'Preview',
-      spriteStyle: cc.spriteStyle,
-      hairStyle: cc.hairStyle,
-      hairColor: cc.hairColor,
-      skinColor: cc.skinColor,
-      shirtColor: cc.shirtColor,
-      pantsColor: cc.pantsColor,
-      eyeColor: cc.eyeColor,
-      shoeColor: cc.shoeColor,
+      gender: cc.bodyType,
+      skinTone: cc.skinTone,
+      hairStyle: hairStyles[cc.hairStyleIdx % hairStyles.length],
+      hairColorIdx: cc.hairColorIdx,
+      shirtStyle: AvatarGen.SHIRT_STYLES[cc.shirtStyleIdx],
+      shirtColorIdx: cc.shirtColorIdx,
+      pantsStyle: AvatarGen.PANTS_STYLES[cc.pantsStyleIdx],
+      pantsColorIdx: cc.pantsColorIdx,
+      shoeColorIdx: cc.shoeColorIdx,
+      accessory: ALL_ACCESSORIES[cc.accIdx],
     };
     var generated = AvatarGen.generate(previewState, 3);
     canvas.width = generated.width;
@@ -73,24 +58,31 @@
     canvas.style.imageRendering = 'pixelated';
   }
 
-  function buildSwatches(containerId, colors, getCurrent, onSelect) {
+  function buildSwatches(containerId, palette, currentIdx, onSelect) {
     var el = document.getElementById(containerId);
     if (!el) return;
     el.innerHTML = '';
-    for (var i = 0; i < colors.length; i++) {
-      (function(color) {
+    for (var i = 0; i < palette.length; i++) {
+      (function(idx) {
         var swatch = document.createElement('button');
-        swatch.className = 'color-swatch' + (getCurrent() === color ? ' selected' : '');
-        swatch.style.background = color;
-        swatch.title = color;
+        swatch.className = 'color-swatch' + (currentIdx === idx ? ' selected' : '');
+        swatch.style.background = palette[idx].base;
+        swatch.title = palette[idx].name;
         swatch.onclick = function() {
-          onSelect(color);
-          buildSwatches(containerId, colors, getCurrent, onSelect);
+          onSelect(idx);
           updateAvatarPreview();
         };
         el.appendChild(swatch);
-      })(colors[i]);
+      })(i);
     }
+  }
+
+  function rebuildAllSwatches() {
+    buildSwatches('swatch-skin', AvatarGen.SKIN_TONES, cc.skinTone, function(i) { cc.skinTone = i; rebuildAllSwatches(); });
+    buildSwatches('swatch-hair', AvatarGen.HAIR_COLORS, cc.hairColorIdx, function(i) { cc.hairColorIdx = i; rebuildAllSwatches(); });
+    buildSwatches('swatch-shirt', AvatarGen.SHIRT_COLORS, cc.shirtColorIdx, function(i) { cc.shirtColorIdx = i; rebuildAllSwatches(); });
+    buildSwatches('swatch-pants', AvatarGen.PANTS_COLORS, cc.pantsColorIdx, function(i) { cc.pantsColorIdx = i; rebuildAllSwatches(); });
+    buildSwatches('swatch-shoes', AvatarGen.SHOE_COLORS, cc.shoeColorIdx, function(i) { cc.shoeColorIdx = i; rebuildAllSwatches(); });
   }
 
   function updateSkillDisplay() {
@@ -109,59 +101,90 @@
     document.getElementById('rel-minus').disabled = cc.reliability === 0;
   }
 
-  var spriteStyles = ['a', 'b', 'c', 'd'];
-  var spriteNames  = ['Style A', 'Style B', 'Style C', 'Style D'];
+  function updateLabels() {
+    var hairStyles = getHairStyles();
+    document.getElementById('body-label').textContent = cc.bodyType === 'female' ? 'Female' : 'Male';
+    document.getElementById('hair-label').textContent = hairStyles[cc.hairStyleIdx % hairStyles.length];
+    document.getElementById('shirt-style-label').textContent = AvatarGen.SHIRT_STYLES[cc.shirtStyleIdx];
+    document.getElementById('pants-style-label').textContent = AvatarGen.PANTS_STYLES[cc.pantsStyleIdx];
+    document.getElementById('acc-label').textContent = ALL_ACCESSORIES[cc.accIdx];
+  }
 
   function initCharacterCreation() {
     // Reset cc state
-    cc.spriteStyle   = 'a';
-    cc.hairStyle     = 0;
-    cc.hairColor     = CC_HAIR[0];
-    cc.skinColor     = CC_SKIN[0];
-    cc.shirtColor    = CC_SHIRT[0];
-    cc.pantsColor    = CC_PANTS[0];
-    cc.eyeColor      = CC_EYES[0];
-    cc.shoeColor     = CC_SHOES[0];
+    cc.bodyType      = 'male';
+    cc.skinTone      = 0;
+    cc.hairStyleIdx  = 0;
+    cc.hairColorIdx  = 0;
+    cc.shirtStyleIdx = 0;
+    cc.shirtColorIdx = 0;
+    cc.pantsStyleIdx = 0;
+    cc.pantsColorIdx = 0;
+    cc.shoeColorIdx  = 0;
+    cc.accIdx        = 0;
     cc.technical     = 0;
     cc.communication = 0;
     cc.reliability   = 0;
 
-    document.getElementById('sprite-label').textContent = 'Style A';
-    document.getElementById('hair-label').textContent   = 'Hair 1';
-
-    // Sprite picker
-    document.getElementById('sprite-prev').onclick = function() {
-      var idx = spriteStyles.indexOf(cc.spriteStyle);
-      cc.spriteStyle = spriteStyles[(idx + spriteStyles.length - 1) % spriteStyles.length];
-      document.getElementById('sprite-label').textContent = spriteNames[spriteStyles.indexOf(cc.spriteStyle)];
-      updateAvatarPreview();
+    // Body type picker
+    document.getElementById('body-prev').onclick = function() {
+      cc.bodyType = cc.bodyType === 'male' ? 'female' : 'male';
+      // Clamp hair style to valid range
+      var hairStyles = getHairStyles();
+      cc.hairStyleIdx = cc.hairStyleIdx % hairStyles.length;
+      updateLabels(); updateAvatarPreview();
     };
-    document.getElementById('sprite-next').onclick = function() {
-      var idx = spriteStyles.indexOf(cc.spriteStyle);
-      cc.spriteStyle = spriteStyles[(idx + 1) % spriteStyles.length];
-      document.getElementById('sprite-label').textContent = spriteNames[spriteStyles.indexOf(cc.spriteStyle)];
-      updateAvatarPreview();
+    document.getElementById('body-next').onclick = function() {
+      cc.bodyType = cc.bodyType === 'male' ? 'female' : 'male';
+      var hairStyles = getHairStyles();
+      cc.hairStyleIdx = cc.hairStyleIdx % hairStyles.length;
+      updateLabels(); updateAvatarPreview();
     };
 
-    // Hair style picker (5 variants)
+    // Hair style picker
     document.getElementById('hair-prev').onclick = function() {
-      cc.hairStyle = (cc.hairStyle + 4) % 5;
-      document.getElementById('hair-label').textContent = 'Hair ' + (cc.hairStyle + 1);
-      updateAvatarPreview();
+      var hairStyles = getHairStyles();
+      cc.hairStyleIdx = (cc.hairStyleIdx + hairStyles.length - 1) % hairStyles.length;
+      updateLabels(); updateAvatarPreview();
     };
     document.getElementById('hair-next').onclick = function() {
-      cc.hairStyle = (cc.hairStyle + 1) % 5;
-      document.getElementById('hair-label').textContent = 'Hair ' + (cc.hairStyle + 1);
-      updateAvatarPreview();
+      var hairStyles = getHairStyles();
+      cc.hairStyleIdx = (cc.hairStyleIdx + 1) % hairStyles.length;
+      updateLabels(); updateAvatarPreview();
+    };
+
+    // Shirt style picker
+    document.getElementById('shirt-style-prev').onclick = function() {
+      cc.shirtStyleIdx = (cc.shirtStyleIdx + AvatarGen.SHIRT_STYLES.length - 1) % AvatarGen.SHIRT_STYLES.length;
+      updateLabels(); updateAvatarPreview();
+    };
+    document.getElementById('shirt-style-next').onclick = function() {
+      cc.shirtStyleIdx = (cc.shirtStyleIdx + 1) % AvatarGen.SHIRT_STYLES.length;
+      updateLabels(); updateAvatarPreview();
+    };
+
+    // Pants style picker
+    document.getElementById('pants-style-prev').onclick = function() {
+      cc.pantsStyleIdx = (cc.pantsStyleIdx + AvatarGen.PANTS_STYLES.length - 1) % AvatarGen.PANTS_STYLES.length;
+      updateLabels(); updateAvatarPreview();
+    };
+    document.getElementById('pants-style-next').onclick = function() {
+      cc.pantsStyleIdx = (cc.pantsStyleIdx + 1) % AvatarGen.PANTS_STYLES.length;
+      updateLabels(); updateAvatarPreview();
+    };
+
+    // Accessory picker
+    document.getElementById('acc-prev').onclick = function() {
+      cc.accIdx = (cc.accIdx + ALL_ACCESSORIES.length - 1) % ALL_ACCESSORIES.length;
+      updateLabels(); updateAvatarPreview();
+    };
+    document.getElementById('acc-next').onclick = function() {
+      cc.accIdx = (cc.accIdx + 1) % ALL_ACCESSORIES.length;
+      updateLabels(); updateAvatarPreview();
     };
 
     // Color swatches
-    buildSwatches('swatch-hair',  CC_HAIR,  function() { return cc.hairColor;  }, function(c) { cc.hairColor  = c; });
-    buildSwatches('swatch-skin',  CC_SKIN,  function() { return cc.skinColor;  }, function(c) { cc.skinColor  = c; });
-    buildSwatches('swatch-eyes',  CC_EYES,  function() { return cc.eyeColor;   }, function(c) { cc.eyeColor   = c; });
-    buildSwatches('swatch-shirt', CC_SHIRT, function() { return cc.shirtColor; }, function(c) { cc.shirtColor = c; });
-    buildSwatches('swatch-pants', CC_PANTS, function() { return cc.pantsColor; }, function(c) { cc.pantsColor = c; });
-    buildSwatches('swatch-shoes', CC_SHOES, function() { return cc.shoeColor;  }, function(c) { cc.shoeColor  = c; });
+    rebuildAllSwatches();
 
     // Skill buttons
     document.getElementById('tec-plus').onclick  = function() {
@@ -183,6 +206,7 @@
       if (cc.reliability > 0)   { cc.reliability--;   updateSkillDisplay(); }
     };
 
+    updateLabels();
     updateSkillDisplay();
     updateAvatarPreview();
   }
@@ -217,16 +241,20 @@
     G = createDefaultState();
     deleteSave();
 
+    var hairStyles = getHairStyles();
+
     G.player.name          = playerName;
     G.player.companyName   = companyName;
-    G.player.spriteStyle   = cc.spriteStyle;
-    G.player.hairStyle     = cc.hairStyle;
-    G.player.hairColor     = cc.hairColor;
-    G.player.skinColor     = cc.skinColor;
-    G.player.shirtColor    = cc.shirtColor;
-    G.player.pantsColor    = cc.pantsColor;
-    G.player.eyeColor      = cc.eyeColor;
-    G.player.shoeColor     = cc.shoeColor;
+    G.player.gender        = cc.bodyType;
+    G.player.skinTone      = cc.skinTone;
+    G.player.hairStyle     = hairStyles[cc.hairStyleIdx % hairStyles.length];
+    G.player.hairColorIdx  = cc.hairColorIdx;
+    G.player.shirtStyle    = AvatarGen.SHIRT_STYLES[cc.shirtStyleIdx];
+    G.player.shirtColorIdx = cc.shirtColorIdx;
+    G.player.pantsStyle    = AvatarGen.PANTS_STYLES[cc.pantsStyleIdx];
+    G.player.pantsColorIdx = cc.pantsColorIdx;
+    G.player.shoeColorIdx  = cc.shoeColorIdx;
+    G.player.accessory     = ALL_ACCESSORIES[cc.accIdx];
     G.player.technical     = cc.technical;
     G.player.communication = cc.communication;
     G.player.reliability   = cc.reliability;

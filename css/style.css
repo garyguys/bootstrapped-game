@@ -255,8 +255,8 @@ select.create-input option {
 
 .create-preview {
   image-rendering: pixelated;
-  width: 72px;
-  height: 96px;
+  width: 144px;
+  height: 144px;
   border: 1px solid var(--panel-border);
   background: var(--grey-dark);
   display: block;
@@ -1420,10 +1420,11 @@ select.create-input option {
   background: rgba(0, 255, 65, 0.03);
 }
 
-.person-avatar {
+.person-avatar,
+.person-avatar-slot {
   flex-shrink: 0;
   width: 48px;
-  height: 64px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1431,7 +1432,8 @@ select.create-input option {
   image-rendering: crisp-edges;
 }
 
-.person-avatar canvas {
+.person-avatar canvas,
+.person-avatar-slot canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }

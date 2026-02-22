@@ -155,6 +155,21 @@ function generateCandidate() {
   var firstName = gender === 'female' ? randomChoice(FEMALE_FIRST_NAMES) : randomChoice(MALE_FIRST_NAMES);
   var lastName = randomChoice(CANDIDATE_LAST_NAMES);
 
+  // Generate random appearance using the sprite system
+  var isFemale = gender === 'female';
+  var hairStyles = isFemale ? AvatarGen.FEMALE_HAIR_STYLES : AvatarGen.MALE_HAIR_STYLES;
+  var appearance = {
+    skinTone: randomInt(0, AvatarGen.SKIN_TONES.length - 1),
+    hairStyle: randomChoice(hairStyles),
+    hairColorIdx: randomInt(0, AvatarGen.HAIR_COLORS.length - 1),
+    shirtStyle: randomChoice(AvatarGen.SHIRT_STYLES),
+    shirtColorIdx: randomInt(0, AvatarGen.SHIRT_COLORS.length - 1),
+    pantsStyle: randomChoice(AvatarGen.PANTS_STYLES),
+    pantsColorIdx: randomInt(0, AvatarGen.PANTS_COLORS.length - 1),
+    shoeColorIdx: randomInt(0, AvatarGen.SHOE_COLORS.length - 1),
+    accessory: randomChoice(AvatarGen.ACCESSORIES),
+  };
+
   // Skills rated 1-10, influenced by level (wider overlap — level = experience, not skill ceiling)
   // Junior: 1-6, Mid: 2-8, Senior: 3-10
   var skillRanges = [[1, 6], [2, 8], [3, 10]];
@@ -245,6 +260,16 @@ function generateCandidate() {
     assignedProjectId: null, // Which project they're assigned to
     isDiamond: isDiamond, // Diamond in the rough — exceptional skill at low salary
     skillXP: { technical: 0, communication: 0, reliability: 0 }, // Hidden XP for skill growth
+    // Appearance (48px sprite system)
+    skinTone: appearance.skinTone,
+    hairStyle: appearance.hairStyle,
+    hairColorIdx: appearance.hairColorIdx,
+    shirtStyle: appearance.shirtStyle,
+    shirtColorIdx: appearance.shirtColorIdx,
+    pantsStyle: appearance.pantsStyle,
+    pantsColorIdx: appearance.pantsColorIdx,
+    shoeColorIdx: appearance.shoeColorIdx,
+    accessory: appearance.accessory,
   };
 }
 
