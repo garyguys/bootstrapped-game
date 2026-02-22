@@ -47,6 +47,7 @@ function showStageUpgradeModal(from, to) {
 
 function spendAP(amount) {
   amount = amount || 1;
+  if (G._devUnlimitedAP) { G.timeSlot += amount; return true; }
   if (G.apCurrent < amount) return false;
   G.apCurrent -= amount;
   G.apUsedToday += amount;
@@ -64,6 +65,7 @@ function spendEnergy(amount) {
     G.mealPrepCharges -= 1;
     if (G.mealPrepCharges <= 0) addLog('Meal prep charges used up.', 'info');
   }
+  if (G._devUnlimitedEnergy) return;
   G.energy = Math.max(0, G.energy - (amount + overhead));
   // Low energy warning (one-shot per day)
   var threshold = Math.floor(G.energyMax * 0.15);

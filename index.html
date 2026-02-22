@@ -20,7 +20,7 @@
         <button id="btn-new-game" class="btn btn-primary">NEW GAME</button>
         <button id="btn-continue" class="btn btn-secondary" style="display:none;">CONTINUE</button>
       </div>
-      <p class="title-version">v0.12</p>
+      <p class="title-version">v0.13</p>
     </div>
     <div class="scanline-overlay"></div>
   </div>
@@ -66,12 +66,20 @@
             <div id="swatch-skin" class="color-swatches"></div>
           </div>
           <div class="create-field">
+            <label class="create-label">EYE COLOR</label>
+            <div id="swatch-eyes" class="color-swatches"></div>
+          </div>
+          <div class="create-field">
             <label class="create-label">SHIRT COLOR</label>
             <div id="swatch-shirt" class="color-swatches"></div>
           </div>
           <div class="create-field">
             <label class="create-label">PANTS COLOR</label>
             <div id="swatch-pants" class="color-swatches"></div>
+          </div>
+          <div class="create-field">
+            <label class="create-label">SHOE COLOR</label>
+            <div id="swatch-shoes" class="color-swatches"></div>
           </div>
           <div class="create-field">
             <label class="create-label">SKILLS &nbsp;<span id="skill-points-left" class="skill-points-badge">8 pts</span></label>
@@ -149,6 +157,7 @@
       <button class="tab" data-tab="market">Market</button>
       <button class="tab" data-tab="shop">Shop</button>
       <button class="tab" data-tab="help">Help</button>
+      <button class="tab" data-tab="dev" style="color:var(--amber);">Dev</button>
     </nav>
 
     <!-- MAIN CONTENT AREA -->
@@ -231,13 +240,15 @@
       <!-- TEAM TAB -->
       <div id="tab-team" class="tab-content">
         <div id="team-payroll-info" class="payroll-banner" style="display:none;"></div>
-        <div class="dashboard-section">
-          <h2 class="section-title">YOUR TEAM</h2>
+        <div class="team-subtabs">
+          <button class="team-subtab active" data-subtab="roster">Your Team</button>
+          <button class="team-subtab" data-subtab="candidates">Candidates</button>
+        </div>
+        <div id="team-panel-roster" class="team-panel">
           <p class="section-hint">Click a person to expand details, work history, and avatar</p>
           <div id="team-roster"></div>
         </div>
-        <div class="dashboard-section">
-          <h2 class="section-title">CANDIDATES</h2>
+        <div id="team-panel-candidates" class="team-panel" style="display:none;">
           <p class="section-hint">Interview to reveal skills. Candidates leave after 3-5 days!</p>
           <div id="team-candidates"></div>
         </div>
@@ -286,6 +297,15 @@
 
       <!-- HELP TAB -->
       <div id="tab-help" class="tab-content"></div>
+
+      <!-- DEV TAB -->
+      <div id="tab-dev" class="tab-content">
+        <div class="dashboard-section">
+          <h2 class="section-title" style="color:var(--amber);">DEV MODE</h2>
+          <p class="section-hint">Testing tools — changes are saved immediately</p>
+          <div id="dev-controls"></div>
+        </div>
+      </div>
 
     </main>
 

@@ -9,17 +9,28 @@
   var CC_HAIR = [
     '#1a1a2e', '#2d1b0e', '#4a2c0a', '#8B4513', '#654321',
     '#2c1608', '#3d2b1f', '#5c3317', '#704214', '#d4a017',
-    '#c0c0c0', '#e87070',
+    '#c0c0c0', '#e87070', '#0a0a0a', '#aa6622', '#f0e68c',
   ];
   var CC_SKIN = [
-    '#FDDBB4', '#F5D5B8', '#D4A574', '#C6956A', '#C08850', '#8D5524',
+    '#FDDBB4', '#F5D5B8', '#E0C0A0', '#D4A574', '#C6956A',
+    '#C08850', '#B8844D', '#8D5524', '#7A4420',
   ];
   var CC_SHIRT = [
     '#2D5FA0', '#2D6B2D', '#6B2D6B', '#8B2020', '#B8860B',
-    '#2D6B6B', '#6B3D2D', '#1a1a3e',
+    '#2D6B6B', '#6B3D2D', '#1a1a3e', '#cc4444', '#44aa44',
+    '#4466cc', '#aa44aa', '#ffffff', '#222222',
   ];
   var CC_PANTS = [
     '#1a1a3e', '#2d2d2d', '#1a3e2d', '#3e1a1a', '#2d3a1a',
+    '#4a3728', '#1a1a1a', '#3d3d5c',
+  ];
+  var CC_EYES = [
+    '#111111', '#2244aa', '#228844', '#664422', '#666666',
+    '#aa4444', '#7744aa',
+  ];
+  var CC_SHOES = [
+    '#111111', '#2d1b0e', '#8B4513', '#1a1a3e', '#cc2222',
+    '#ffffff', '#555555',
   ];
 
   // Current state of character creation form
@@ -30,6 +41,8 @@
     skinColor: CC_SKIN[0],
     shirtColor: CC_SHIRT[0],
     pantsColor: CC_PANTS[0],
+    eyeColor: CC_EYES[0],
+    shoeColor: CC_SHOES[0],
     technical: 0,
     communication: 0,
     reliability: 0,
@@ -48,6 +61,8 @@
       skinColor: cc.skinColor,
       shirtColor: cc.shirtColor,
       pantsColor: cc.pantsColor,
+      eyeColor: cc.eyeColor,
+      shoeColor: cc.shoeColor,
     };
     var generated = AvatarGen.generate(previewState, 6);
     canvas.width = generated.width;
@@ -94,8 +109,8 @@
     document.getElementById('rel-minus').disabled = cc.reliability === 0;
   }
 
-  var spriteStyles = ['a', 'b'];
-  var spriteNames  = ['Style A', 'Style B'];
+  var spriteStyles = ['a', 'b', 'c', 'd'];
+  var spriteNames  = ['Style A', 'Style B', 'Style C', 'Style D'];
 
   function initCharacterCreation() {
     // Reset cc state
@@ -105,6 +120,8 @@
     cc.skinColor     = CC_SKIN[0];
     cc.shirtColor    = CC_SHIRT[0];
     cc.pantsColor    = CC_PANTS[0];
+    cc.eyeColor      = CC_EYES[0];
+    cc.shoeColor     = CC_SHOES[0];
     cc.technical     = 0;
     cc.communication = 0;
     cc.reliability   = 0;
@@ -126,14 +143,14 @@
       updateAvatarPreview();
     };
 
-    // Hair style picker
+    // Hair style picker (5 variants)
     document.getElementById('hair-prev').onclick = function() {
-      cc.hairStyle = (cc.hairStyle + 2) % 3;
+      cc.hairStyle = (cc.hairStyle + 4) % 5;
       document.getElementById('hair-label').textContent = 'Hair ' + (cc.hairStyle + 1);
       updateAvatarPreview();
     };
     document.getElementById('hair-next').onclick = function() {
-      cc.hairStyle = (cc.hairStyle + 1) % 3;
+      cc.hairStyle = (cc.hairStyle + 1) % 5;
       document.getElementById('hair-label').textContent = 'Hair ' + (cc.hairStyle + 1);
       updateAvatarPreview();
     };
@@ -141,8 +158,10 @@
     // Color swatches
     buildSwatches('swatch-hair',  CC_HAIR,  function() { return cc.hairColor;  }, function(c) { cc.hairColor  = c; });
     buildSwatches('swatch-skin',  CC_SKIN,  function() { return cc.skinColor;  }, function(c) { cc.skinColor  = c; });
+    buildSwatches('swatch-eyes',  CC_EYES,  function() { return cc.eyeColor;   }, function(c) { cc.eyeColor   = c; });
     buildSwatches('swatch-shirt', CC_SHIRT, function() { return cc.shirtColor; }, function(c) { cc.shirtColor = c; });
     buildSwatches('swatch-pants', CC_PANTS, function() { return cc.pantsColor; }, function(c) { cc.pantsColor = c; });
+    buildSwatches('swatch-shoes', CC_SHOES, function() { return cc.shoeColor;  }, function(c) { cc.shoeColor  = c; });
 
     // Skill buttons
     document.getElementById('tec-plus').onclick  = function() {
@@ -183,6 +202,13 @@
   }
 
   function startGameWithCharacter() {
+    var used = cc.technical + cc.communication + cc.reliability;
+    if (used < SKILL_POOL) {
+      var badge = document.getElementById('skill-points-left');
+      if (badge) { badge.style.color = '#ff3333'; badge.textContent = (SKILL_POOL - used) + ' pts remaining!'; }
+      return;
+    }
+
     var nameInput = document.getElementById('create-player-name');
     var compInput = document.getElementById('create-company-name');
     var playerName  = (nameInput ? nameInput.value : '').trim() || 'Founder';
@@ -199,6 +225,8 @@
     G.player.skinColor     = cc.skinColor;
     G.player.shirtColor    = cc.shirtColor;
     G.player.pantsColor    = cc.pantsColor;
+    G.player.eyeColor      = cc.eyeColor;
+    G.player.shoeColor     = cc.shoeColor;
     G.player.technical     = cc.technical;
     G.player.communication = cc.communication;
     G.player.reliability   = cc.reliability;

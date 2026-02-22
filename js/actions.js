@@ -39,7 +39,10 @@ var AP_COSTS = {
 
 function canAct(apNeeded) {
   apNeeded = apNeeded || 1;
-  if (G.energy <= 0) return false; // No energy = no actions
+  if (G._devUnlimitedAP && G._devUnlimitedEnergy) return !G.gameOver;
+  if (G._devUnlimitedEnergy && G.apCurrent >= apNeeded) return !G.gameOver;
+  if (G._devUnlimitedAP && G.energy > 0) return !G.gameOver;
+  if (G.energy <= 0) return false;
   return G.apCurrent >= apNeeded && !G.gameOver;
 }
 
@@ -407,17 +410,16 @@ function actionAssignToProduct(employeeId, productId) {
 // --- Food Items (NO AP cost, scales $50-$1000, expensive = temp buffs) ---
 
 var FOOD_ITEMS = [
-  { id: 'street_coffee',    name: 'Street Coffee',       baseCost: 50,   energy: 15,  desc: '+15 energy',                     buff: null },
-  { id: 'lunch_delivery',   name: 'Lunch Delivery',      baseCost: 100,  energy: 25,  desc: '+25 energy',                     buff: null },
-  { id: 'healthy_catering', name: 'Healthy Catering',    baseCost: 200,  energy: 35,  desc: '+35 energy, +5% project speed 1d', buff: { id: 'food_speed', name: 'Well Fed', desc: '+5% project speed', value: 5, daysLeft: 1 } },
-  { id: 'team_dinner',      name: 'Team Dinner',         baseCost: 350,  energy: 45,  desc: '+45 energy, +5 team loyalty',     buff: null, loyaltyBonus: 5 },
-  { id: 'premium_catering', name: 'Premium Catering',    baseCost: 600,  energy: 60,  desc: '+60 energy, +10% speed 2d',       buff: { id: 'food_speed', name: 'Gourmet Boost', desc: '+10% project speed', value: 10, daysLeft: 2 } },
-  { id: 'executive_dining', name: 'Executive Dining',    baseCost: 1000, energy: 80,  desc: '+80 energy, +15% speed 3d, +2 rep', buff: { id: 'food_speed', name: 'Executive Fuel', desc: '+15% project speed', value: 15, daysLeft: 3 }, repBonus: 2 },
-  // v0.10 additions
-  { id: 'energy_drink',    name: 'Energy Drink',        baseCost: 30,   energy: 10,  desc: '+10 energy (no daily limit)',         buff: null, multiUse: true },
-  { id: 'smoothie_bar',    name: 'Smoothie Bar',        baseCost: 150,  energy: 30,  desc: '+30 energy',                         buff: null },
-  { id: 'meal_prep',       name: 'Meal Prep Service',   baseCost: 250,  energy: 40,  desc: '+40 energy, next 3 actions cost 25% less energy', buff: null, mealPrep: true },
-  { id: 'corporate_retreat', name: 'Corporate Retreat', baseCost: 2000, energy: 100, desc: '+100 energy, +15 loyalty all (14d cooldown)', buff: null, retreatBonus: true },
+  { id: 'energy_drink',     name: 'Energy Drink',        baseCost: 30,   energy: 10,  desc: '+10 energy (1/day)',                                   buff: null },
+  { id: 'street_coffee',    name: 'Street Coffee',       baseCost: 50,   energy: 15,  desc: '+15 energy',                                          buff: null },
+  { id: 'lunch_delivery',   name: 'Lunch Delivery',      baseCost: 100,  energy: 25,  desc: '+25 energy',                                          buff: null },
+  { id: 'smoothie_bar',     name: 'Smoothie Bar',        baseCost: 150,  energy: 30,  desc: '+30 energy',                                          buff: null },
+  { id: 'healthy_catering', name: 'Healthy Catering',    baseCost: 200,  energy: 35,  desc: '+35 energy, +5% project speed 1d',                     buff: { id: 'food_speed', name: 'Well Fed', desc: '+5% project speed', value: 5, daysLeft: 1 } },
+  { id: 'meal_prep',        name: 'Meal Prep Service',   baseCost: 250,  energy: 40,  desc: '+40 energy, next 3 actions cost 25% less energy',      buff: null, mealPrep: true },
+  { id: 'team_dinner',      name: 'Team Dinner',         baseCost: 350,  energy: 45,  desc: '+45 energy, +5 team loyalty',                          buff: null, loyaltyBonus: 5 },
+  { id: 'premium_catering', name: 'Premium Catering',    baseCost: 600,  energy: 60,  desc: '+60 energy, +10% speed 2d',                            buff: { id: 'food_speed', name: 'Gourmet Boost', desc: '+10% project speed', value: 10, daysLeft: 2 } },
+  { id: 'executive_dining', name: 'Executive Dining',    baseCost: 1000, energy: 80,  desc: '+80 energy, +15% speed 3d, +2 rep',                    buff: { id: 'food_speed', name: 'Executive Fuel', desc: '+15% project speed', value: 15, daysLeft: 3 }, repBonus: 2 },
+  { id: 'corporate_retreat', name: 'Corporate Retreat',  baseCost: 2000, energy: 100, desc: '+100 energy, +15 loyalty all (14d cooldown)',           buff: null, retreatBonus: true },
 ];
 
 function getFoodCost(item) {
@@ -437,10 +439,9 @@ function actionOrderFood(foodId) {
   }
   if (!item) return;
 
-  // Per-item daily cooldown (v0.09: each food item once per day)
-  // Energy drink is multi-use (no daily limit)
+  // Per-item daily cooldown (each food item once per day)
   if (!G.foodPurchasedToday) G.foodPurchasedToday = {};
-  if (!item.multiUse && G.foodPurchasedToday[foodId] >= G.day) {
+  if (G.foodPurchasedToday[foodId] >= G.day) {
     addLog('Already had ' + item.name + ' today. Try something else!', 'warn');
     return;
   }
@@ -465,7 +466,7 @@ function actionOrderFood(foodId) {
   }
 
   G.cash -= cost;
-  if (!item.multiUse) G.foodPurchasedToday[foodId] = G.day;
+  G.foodPurchasedToday[foodId] = G.day;
   recordTransaction('expense', 'food', cost, item.name);
   var energyGain = item.energy;
   // Private chef: +20% food energy

@@ -39,6 +39,7 @@ var UI = {
     this.renderMarket();
     this.renderShop();
     this.renderHelp();
+    this.renderDev();
     this.renderFooter();
     this.updateTimeOfDay();
   },
@@ -526,6 +527,29 @@ var UI = {
     var rosterEl = document.getElementById('team-roster');
     var candidatesEl = document.getElementById('team-candidates');
 
+    // Sub-tab switching
+    var subtabs = document.querySelectorAll('.team-subtab');
+    for (var st = 0; st < subtabs.length; st++) {
+      subtabs[st].onclick = (function(btn) {
+        return function() {
+          var panels = document.querySelectorAll('.team-panel');
+          var subs = document.querySelectorAll('.team-subtab');
+          for (var a = 0; a < subs.length; a++) subs[a].classList.remove('active');
+          for (var b = 0; b < panels.length; b++) panels[b].style.display = 'none';
+          btn.classList.add('active');
+          var panel = document.getElementById('team-panel-' + btn.getAttribute('data-subtab'));
+          if (panel) panel.style.display = 'block';
+        };
+      })(subtabs[st]);
+    }
+
+    // Update candidate count badge
+    var visibleCandidates = G.candidates.filter(function(c) { return !c.isBeingPoached; });
+    var candTab = document.querySelector('.team-subtab[data-subtab="candidates"]');
+    if (candTab) {
+      candTab.textContent = 'Candidates' + (visibleCandidates.length > 0 ? ' (' + visibleCandidates.length + ')' : '');
+    }
+
     var payrollEl = document.getElementById('team-payroll-info');
     if (payrollEl) {
       if (G.team.length > 0) {
@@ -1007,7 +1031,7 @@ var UI = {
       (function(item) {
         var cost = getFoodCost(item);
         var buffActive = !!(item.buff && foodSpeedPerk);
-        var itemOrderedToday = !item.multiUse && G.foodPurchasedToday[item.id] >= G.day;
+        var itemOrderedToday = G.foodPurchasedToday[item.id] >= G.day;
         var retreatCD = item.retreatBonus && (G.day - (G.lastRetreatDay || -99)) < 14;
         var retreatDaysLeft = retreatCD ? (14 - (G.day - (G.lastRetreatDay || -99))) : 0;
         var disabledReason = itemOrderedToday ? 'Already had ' + item.name + ' today'
@@ -1562,6 +1586,153 @@ var UI = {
   },
 
   // --- Tab Switching ---
+  renderDev: function() {
+    var el = document.getElementById('dev-controls');
+    if (!el) return;
+    el.innerHTML = '';
+
+    var self = this;
+
+    function devRow(label, html) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--panel-border);';
+      row.innerHTML = '<span style="color:var(--green);font-size:0.75rem;">' + label + '</span>';
+      var right = document.createElement('div');
+      right.style.cssText = 'display:flex;align-items:center;gap:0.4rem;';
+      if (typeof html === 'string') {
+        right.innerHTML = html;
+      } else {
+        right.appendChild(html);
+      }
+      row.appendChild(right);
+      el.appendChild(row);
+      return right;
+    }
+
+    function devBtn(text, onClick) {
+      var b = document.createElement('button');
+      b.className = 'btn btn-small btn-secondary';
+      b.style.fontSize = '0.65rem';
+      b.textContent = text;
+      b.onclick = onClick;
+      return b;
+    }
+
+    // Cash
+    var cashRow = document.createElement('div');
+    cashRow.style.cssText = 'display:flex;align-items:center;gap:0.3rem;';
+    var cashVal = document.createElement('span');
+    cashVal.style.cssText = 'color:var(--white);font-size:0.75rem;min-width:5rem;text-align:right;';
+    cashVal.textContent = '$' + G.cash.toLocaleString();
+    cashRow.appendChild(devBtn('-10k', function() { G.cash = Math.max(0, G.cash - 10000); saveGame(); self.renderAll(); }));
+    cashRow.appendChild(devBtn('-1k', function() { G.cash = Math.max(0, G.cash - 1000); saveGame(); self.renderAll(); }));
+    cashRow.appendChild(cashVal);
+    cashRow.appendChild(devBtn('+1k', function() { G.cash += 1000; saveGame(); self.renderAll(); }));
+    cashRow.appendChild(devBtn('+10k', function() { G.cash += 10000; saveGame(); self.renderAll(); }));
+    cashRow.appendChild(devBtn('+100k', function() { G.cash += 100000; saveGame(); self.renderAll(); }));
+    devRow('CASH', cashRow);
+
+    // Energy
+    var energyRow = document.createElement('div');
+    energyRow.style.cssText = 'display:flex;align-items:center;gap:0.3rem;';
+    var energyVal = document.createElement('span');
+    energyVal.style.cssText = 'color:var(--white);font-size:0.75rem;min-width:3rem;text-align:right;';
+    energyVal.textContent = G.energy;
+    energyRow.appendChild(devBtn('-25', function() { G.energy = Math.max(0, G.energy - 25); saveGame(); self.renderAll(); }));
+    energyRow.appendChild(energyVal);
+    energyRow.appendChild(devBtn('+25', function() { G.energy = Math.min(200, G.energy + 25); saveGame(); self.renderAll(); }));
+    energyRow.appendChild(devBtn('MAX', function() { G.energy = 200; saveGame(); self.renderAll(); }));
+    devRow('ENERGY', energyRow);
+
+    // Unlimited Energy toggle
+    var unlimEnergy = document.createElement('div');
+    var ueBtn = devBtn(G._devUnlimitedEnergy ? 'ON' : 'OFF', function() {
+      G._devUnlimitedEnergy = !G._devUnlimitedEnergy;
+      if (G._devUnlimitedEnergy) G.energy = 200;
+      saveGame(); self.renderAll();
+    });
+    if (G._devUnlimitedEnergy) ueBtn.style.color = 'var(--green)';
+    unlimEnergy.appendChild(ueBtn);
+    devRow('UNLIMITED ENERGY', unlimEnergy);
+
+    // AP
+    var apRow = document.createElement('div');
+    apRow.style.cssText = 'display:flex;align-items:center;gap:0.3rem;';
+    var apVal = document.createElement('span');
+    apVal.style.cssText = 'color:var(--white);font-size:0.75rem;min-width:2rem;text-align:right;';
+    apVal.textContent = G.ap + '/' + getBaseAPMax();
+    apRow.appendChild(devBtn('-1', function() { G.ap = Math.max(0, G.ap - 1); saveGame(); self.renderAll(); }));
+    apRow.appendChild(apVal);
+    apRow.appendChild(devBtn('+1', function() { G.ap += 1; saveGame(); self.renderAll(); }));
+    apRow.appendChild(devBtn('MAX', function() { G.ap = getBaseAPMax(); saveGame(); self.renderAll(); }));
+    devRow('ACTION POINTS', apRow);
+
+    // Unlimited AP toggle
+    var unlimAP = document.createElement('div');
+    var uaBtn = devBtn(G._devUnlimitedAP ? 'ON' : 'OFF', function() {
+      G._devUnlimitedAP = !G._devUnlimitedAP;
+      if (G._devUnlimitedAP) G.ap = 99;
+      saveGame(); self.renderAll();
+    });
+    if (G._devUnlimitedAP) uaBtn.style.color = 'var(--green)';
+    unlimAP.appendChild(uaBtn);
+    devRow('UNLIMITED AP', unlimAP);
+
+    // Reputation
+    var repRow = document.createElement('div');
+    repRow.style.cssText = 'display:flex;align-items:center;gap:0.3rem;';
+    var repVal = document.createElement('span');
+    repVal.style.cssText = 'color:var(--white);font-size:0.75rem;min-width:3rem;text-align:right;';
+    repVal.textContent = G.reputation;
+    repRow.appendChild(devBtn('-50', function() { G.reputation = Math.max(0, G.reputation - 50); saveGame(); self.renderAll(); }));
+    repRow.appendChild(devBtn('-10', function() { G.reputation = Math.max(0, G.reputation - 10); saveGame(); self.renderAll(); }));
+    repRow.appendChild(repVal);
+    repRow.appendChild(devBtn('+10', function() { G.reputation += 10; saveGame(); self.renderAll(); }));
+    repRow.appendChild(devBtn('+50', function() { G.reputation += 50; saveGame(); self.renderAll(); }));
+    repRow.appendChild(devBtn('+200', function() { G.reputation += 200; saveGame(); self.renderAll(); }));
+    devRow('REPUTATION', repRow);
+
+    // Stage override
+    var stageRow = document.createElement('div');
+    stageRow.style.cssText = 'display:flex;align-items:center;gap:0.3rem;flex-wrap:wrap;';
+    var stageNames = ['freelancer', 'home_office', 'startup', 'seed_stage', 'series_a', 'growth', 'enterprise', 'leader'];
+    for (var si = 0; si < stageNames.length; si++) {
+      (function(stgId) {
+        var sb = devBtn(stgId.replace('_', ' ').toUpperCase(), function() {
+          G.stage = stgId; saveGame(); self.renderAll();
+        });
+        if (G.stage === stgId) { sb.style.color = 'var(--green)'; sb.style.borderColor = 'var(--green)'; }
+        stageRow.appendChild(sb);
+      })(stageNames[si]);
+    }
+    devRow('SET STAGE', stageRow);
+
+    // Player skills
+    var skillNames = ['technical', 'communication', 'reliability'];
+    for (var ski = 0; ski < skillNames.length; ski++) {
+      (function(sk) {
+        var skLabel = sk.charAt(0).toUpperCase() + sk.slice(1);
+        var skRow = document.createElement('div');
+        skRow.style.cssText = 'display:flex;align-items:center;gap:0.3rem;';
+        var skVal = document.createElement('span');
+        skVal.style.cssText = 'color:var(--white);font-size:0.75rem;min-width:2rem;text-align:right;';
+        skVal.textContent = G.player[sk];
+        skRow.appendChild(devBtn('-1', function() { G.player[sk] = Math.max(0, G.player[sk] - 1); saveGame(); self.renderAll(); }));
+        skRow.appendChild(skVal);
+        skRow.appendChild(devBtn('+1', function() { G.player[sk] = Math.min(10, G.player[sk] + 1); saveGame(); self.renderAll(); }));
+        skRow.appendChild(devBtn('MAX', function() { G.player[sk] = 10; saveGame(); self.renderAll(); }));
+        devRow('SKILL: ' + skLabel.toUpperCase(), skRow);
+      })(skillNames[ski]);
+    }
+
+    // Skip day
+    var skipRow = document.createElement('div');
+    skipRow.appendChild(devBtn('SKIP TO NEXT DAY', function() {
+      endDay(true);
+    }));
+    devRow('TIME', skipRow);
+  },
+
   switchTab: function(tabName) {
     var tabs = document.querySelectorAll('.tab');
     var contents = document.querySelectorAll('.tab-content');

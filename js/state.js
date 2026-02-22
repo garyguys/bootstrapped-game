@@ -26,12 +26,14 @@ function createDefaultState() {
     player: {
       name: 'Founder',
       companyName: 'My Startup',
-      spriteStyle: 'a',        // 'a' (male sprite) or 'b' (female sprite)
-      hairStyle: 0,            // 0, 1, 2 — sprite hair variant
-      hairColor: '#5C3A1E',    // hex
-      skinColor: '#F5D5B8',    // hex
-      shirtColor: '#2D5FA0',   // hex
-      pantsColor: '#1a1a3e',   // hex
+      spriteStyle: 'a',        // 'a', 'b', 'c', 'd' — sprite body style
+      hairStyle: 0,            // 0-4 — sprite hair variant
+      hairColor: '#5C3A1E',
+      skinColor: '#F5D5B8',
+      shirtColor: '#2D5FA0',
+      pantsColor: '#1a1a3e',
+      eyeColor: '#111111',
+      shoeColor: '#111111',
       technical: 0,
       communication: 0,
       reliability: 0,

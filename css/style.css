@@ -1373,6 +1373,32 @@ select.create-input option {
 }
 .team-role-header:first-child { margin-top: 0; }
 
+.team-subtabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.team-subtab {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--panel-bg);
+  color: var(--grey-light);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.team-subtab.active {
+  background: var(--green-dark);
+  color: var(--green);
+}
+
 .person-card {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
