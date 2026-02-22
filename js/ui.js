@@ -458,7 +458,7 @@ var UI = {
     var desc = document.getElementById('event-modal-desc');
     var choices = document.getElementById('event-modal-choices');
 
-    var ROLE_COLORS = { developer: 'var(--green)', designer: '#b060d0', devops: 'var(--amber)', pm: 'var(--cyan)', sales: '#6090e0', marketer: '#d0c040' };
+    var ROLE_COLORS = { developer: '#60a0ff', designer: '#b060d0', devops: 'var(--amber)', pm: 'var(--cyan)', sales: '#6090e0', marketer: '#d0c040' };
     var roleLabels = { developer: 'DEV', designer: 'DES', devops: 'OPS', pm: 'PM', sales: 'SAL', marketer: 'MKT' };
 
     title.textContent = 'ASSIGN TEAM TO ' + project.name;
@@ -691,7 +691,7 @@ var UI = {
     setTimeout(function() {
       var slot = card.querySelector('.person-avatar-slot');
       if (slot && typeof AvatarGen !== 'undefined') {
-        var canvas = AvatarGen.generate(emp, 3);
+        var canvas = AvatarGen.generate(emp, 2);
         slot.appendChild(canvas);
       }
     }, 0);
@@ -785,7 +785,7 @@ var UI = {
     setTimeout(function() {
       var slot = card.querySelector('.person-avatar-slot');
       if (slot && typeof AvatarGen !== 'undefined') {
-        var canvas = AvatarGen.generate(c, 3);
+        var canvas = AvatarGen.generate(c, 2);
         slot.appendChild(canvas);
       }
     }, 0);
@@ -1009,17 +1009,24 @@ var UI = {
 
     // Partnership button (not available if already partner or acquired)
     if (!comp.isPartner) {
+      var partCooldown = typeof getPartnershipCooldown === 'function' ? getPartnershipCooldown(comp) : 0;
       var partCost = typeof getPartnershipCost === 'function' ? getPartnershipCost(comp) : 10000;
       var btnPart = document.createElement('button');
       btnPart.className = 'btn btn-secondary btn-small';
-      btnPart.textContent = 'PARTNERSHIP ($' + partCost.toLocaleString() + ', 2 AP)';
-      btnPart.disabled = !canAct(2) || G.cash < partCost;
-      btnPart.onclick = (function(id) { return function() { actionPartnership(id); }; })(comp.id);
+      if (partCooldown > 0) {
+        btnPart.textContent = 'PARTNERSHIP (Cooldown: ' + partCooldown + ' day' + (partCooldown > 1 ? 's' : '') + ')';
+        btnPart.disabled = true;
+      } else {
+        btnPart.textContent = 'PARTNERSHIP ($' + partCost.toLocaleString() + ', 2 AP)';
+        btnPart.disabled = !canAct(2) || G.cash < partCost;
+        btnPart.onclick = (function(id) { return function() { actionPartnership(id); }; })(comp.id);
+      }
       actionsDiv.appendChild(btnPart);
     } else {
       var partBadge = document.createElement('span');
       partBadge.style.cssText = 'color:var(--cyan);font-size:0.7rem;margin-left:0.5rem;';
-      partBadge.textContent = 'PARTNER';
+      var partDaysLeft = comp.partnerDay ? 14 - (G.day - comp.partnerDay) : 0;
+      partBadge.textContent = 'PARTNER' + (partDaysLeft > 0 ? ' (' + partDaysLeft + 'd left)' : '');
       actionsDiv.appendChild(partBadge);
     }
 
@@ -1306,12 +1313,65 @@ var UI = {
       actionsRow.appendChild(btnA);
 
       if (product.status === 'greenlight') {
+        var apRemaining = (product.apRequired || 12) - (product.apInvested || 0);
+        var apAvail = Math.min(apRemaining, G.apCurrent);
+        var apDefault = Math.min(apAvail, 3);
+        if (apDefault < 1) apDefault = 1;
+
+        var investRow = document.createElement('div');
+        investRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+        var btnMinus = document.createElement('button');
+        btnMinus.className = 'btn btn-secondary btn-small';
+        btnMinus.textContent = '-';
+        btnMinus.style.cssText = 'min-width:28px;padding:2px 6px;';
+
+        var apLabel = document.createElement('span');
+        apLabel.style.cssText = 'color:var(--green);font-size:0.75rem;min-width:36px;text-align:center;';
+        apLabel.textContent = apDefault + ' AP';
+        apLabel.setAttribute('data-ap-val', apDefault);
+
+        var btnPlus = document.createElement('button');
+        btnPlus.className = 'btn btn-secondary btn-small';
+        btnPlus.textContent = '+';
+        btnPlus.style.cssText = 'min-width:28px;padding:2px 6px;';
+
+        btnMinus.onclick = function(e) {
+          e.stopPropagation();
+          var cur = parseInt(apLabel.getAttribute('data-ap-val'));
+          if (cur > 1) {
+            cur--;
+            apLabel.setAttribute('data-ap-val', cur);
+            apLabel.textContent = cur + ' AP';
+          }
+        };
+        btnPlus.onclick = function(e) {
+          e.stopPropagation();
+          var cur = parseInt(apLabel.getAttribute('data-ap-val'));
+          if (cur < apAvail) {
+            cur++;
+            apLabel.setAttribute('data-ap-val', cur);
+            apLabel.textContent = cur + ' AP';
+          }
+        };
+
         var btnInvest = document.createElement('button');
         btnInvest.className = 'btn btn-primary btn-small';
-        btnInvest.textContent = 'INVEST AP (1 AP) — ' + (product.apInvested || 0) + '/' + (product.apRequired || 12);
+        btnInvest.textContent = 'INVEST — ' + (product.apInvested || 0) + '/' + (product.apRequired || 12);
         btnInvest.disabled = !canAct(1);
-        btnInvest.onclick = (function(id) { return function(e) { e.stopPropagation(); actionInvestInProduct(id); }; })(product.id);
-        actionsDropdown.appendChild(btnInvest);
+        btnInvest.onclick = (function(id) {
+          return function(e) {
+            e.stopPropagation();
+            var amt = parseInt(apLabel.getAttribute('data-ap-val'));
+            actionInvestInProduct(id, amt);
+          };
+        })(product.id);
+
+        investRow.appendChild(btnMinus);
+        investRow.appendChild(apLabel);
+        investRow.appendChild(btnPlus);
+        investRow.appendChild(btnInvest);
+        actionsDropdown.appendChild(investRow);
       }
 
       if (product.status === 'building') {
@@ -1345,6 +1405,19 @@ var UI = {
           btnUpgrade.disabled = !canAct(2) || G.cash < upgradeCost;
           btnUpgrade.onclick = (function(id) { return function(e) { e.stopPropagation(); actionUpgradeProduct(id); }; })(product.id);
           actionsDropdown.appendChild(btnUpgrade);
+        }
+
+        // v0.16: Sell product for lump sum
+        var sellDailyIncome = typeof getProductDailyIncome === 'function' ? getProductDailyIncome(product) : 0;
+        if (sellDailyIncome > 0) {
+          var sellEstMin = sellDailyIncome * 10;
+          var sellEstMax = sellDailyIncome * 30;
+          var btnSell = document.createElement('button');
+          btnSell.className = 'btn btn-danger btn-small';
+          btnSell.textContent = 'SELL PRODUCT ($' + sellEstMin.toLocaleString() + '-$' + sellEstMax.toLocaleString() + ')';
+          btnSell.disabled = !canAct(1);
+          btnSell.onclick = (function(id) { return function(e) { e.stopPropagation(); actionSellProduct(id); }; })(product.id);
+          actionsDropdown.appendChild(btnSell);
         }
       }
 
@@ -1438,7 +1511,7 @@ var UI = {
     var desc = document.getElementById('event-modal-desc');
     var choices = document.getElementById('event-modal-choices');
 
-    var ROLE_COLORS = { developer: 'var(--green)', designer: '#b060d0', devops: 'var(--amber)', pm: 'var(--cyan)', sales: '#6090e0', marketer: '#d0c040' };
+    var ROLE_COLORS = { developer: '#60a0ff', designer: '#b060d0', devops: 'var(--amber)', pm: 'var(--cyan)', sales: '#6090e0', marketer: '#d0c040' };
     var roleLabels = { developer: 'DEV', designer: 'DES', devops: 'OPS', pm: 'PM', sales: 'SAL', marketer: 'MKT' };
 
     title.textContent = 'ASSIGN TEAM — ' + product.name;

@@ -420,12 +420,6 @@ function _showAcqStep1(target) {
     choices.appendChild(btnConfirm);
   }
 
-  var btnCancel = document.createElement('button');
-  btnCancel.className = 'btn btn-secondary';
-  btnCancel.textContent = 'CANCEL';
-  btnCancel.onclick = function() { modal.style.display = 'none'; };
-  choices.appendChild(btnCancel);
-
   modal.style.display = 'flex';
 }
 
@@ -477,12 +471,6 @@ function _showAcqStep2(target, selectedProducts) {
   btnBack.textContent = '\u2190 BACK';
   btnBack.onclick = function() { _showAcqStep1(target); };
   choices.appendChild(btnBack);
-
-  var btnCancel = document.createElement('button');
-  btnCancel.className = 'btn btn-secondary';
-  btnCancel.textContent = 'CANCEL';
-  btnCancel.onclick = function() { modal.style.display = 'none'; };
-  choices.appendChild(btnCancel);
 
   modal.style.display = 'flex';
 }
@@ -578,11 +566,84 @@ function executeAcquisition(target, selectedProductIndices, selectedTeamIndices)
   G.overnightEvents.push(msg);
 
   showActionConfirmation(msg, 'good', function() {
-    if (hiredTeam.length > 0 && typeof showNegotiationModal === 'function') {
-      showNegotiationModal(hiredTeam[0]);
+    if (hiredTeam.length > 0) {
+      G._acqHireQueue = hiredTeam;
+      showAcqTeamList(target.name);
     }
     afterAction();
   });
+}
+
+// v0.16: Show acquired team list for sequential negotiation
+function showAcqTeamList(companyName) {
+  if (!G._acqHireQueue || G._acqHireQueue.length === 0) return;
+
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+
+  title.textContent = 'ACQUIRED TEAM \u2014 ' + companyName.toUpperCase();
+
+  var html = '<div style="color:var(--cyan);margin-bottom:8px;">Negotiate with acquired team members:</div>';
+  for (var i = 0; i < G._acqHireQueue.length; i++) {
+    var emp = G._acqHireQueue[i];
+    var alreadyHired = G.team.some(function(t) { return t.id === emp.id; });
+    var status = alreadyHired ? '<span style="color:var(--green)">HIRED</span>' : '<span style="color:var(--amber)">In candidates</span>';
+    html += '<div class="negotiation-row">' +
+      '<span>' + escHtml(emp.name) + ' (' + emp.levelName + ' ' + emp.role.name + ')</span>' +
+      '<span>' + status + '</span></div>';
+  }
+
+  desc.innerHTML = html;
+  choices.innerHTML = '';
+
+  // Add NEGOTIATE buttons for un-hired members
+  for (var j = 0; j < G._acqHireQueue.length; j++) {
+    var member = G._acqHireQueue[j];
+    var isHired = G.team.some(function(t) { return t.id === member.id; });
+    if (isHired) continue;
+
+    var btn = document.createElement('button');
+    btn.className = 'btn btn-primary btn-small';
+    btn.textContent = 'NEGOTIATE \u2014 ' + member.name;
+    btn.onclick = (function(m, cName) {
+      return function() {
+        modal.style.display = 'none';
+        if (typeof showNegotiationModal === 'function') {
+          showNegotiationModal(m);
+        }
+        // Poll for negotiation modal close, then re-show team list
+        var negModal = document.getElementById('negotiation-modal');
+        var pollId = setInterval(function() {
+          if (!negModal || negModal.style.display === 'none' || negModal.style.display === '') {
+            clearInterval(pollId);
+            // Re-show team list if more members remain
+            var remaining = (G._acqHireQueue || []).filter(function(q) {
+              return !G.team.some(function(t) { return t.id === q.id; });
+            });
+            if (remaining.length > 0) {
+              showAcqTeamList(cName);
+            } else {
+              G._acqHireQueue = null;
+            }
+          }
+        }, 200);
+      };
+    })(member, companyName);
+    choices.appendChild(btn);
+  }
+
+  var btnDone = document.createElement('button');
+  btnDone.className = 'btn btn-secondary';
+  btnDone.textContent = 'DONE';
+  btnDone.onclick = function() {
+    modal.style.display = 'none';
+    G._acqHireQueue = null;
+  };
+  choices.appendChild(btnDone);
+
+  modal.style.display = 'flex';
 }
 
 // --- Strategic Partnership ---
@@ -590,32 +651,123 @@ function getPartnershipCost(competitor) {
   return Math.round(competitor.share * 1000 + 5000);
 }
 
-function formPartnership(competitorId) {
+function getPartnershipChance(competitor) {
+  var baseChance = { niche: 70, budget: 60, vc_funded: 45, megacorp: 30 };
+  var chance = baseChance[competitor.style] || 50;
+  // +0.5% per player reputation, capped at +20%
+  chance += Math.min(20, Math.round(G.reputation * 0.5));
+  return Math.min(95, chance);
+}
+
+function canPartnerWith(competitor) {
+  if (competitor.isPartner) return false;
+  if (competitor.partnerExpiredDay && G.day - competitor.partnerExpiredDay < 7) return false;
+  return true;
+}
+
+function getPartnershipCooldown(competitor) {
+  if (!competitor.partnerExpiredDay) return 0;
+  var remaining = 7 - (G.day - competitor.partnerExpiredDay);
+  return remaining > 0 ? remaining : 0;
+}
+
+// Show partnership preview + attempt modal
+function showPartnershipPreview(competitorId) {
+  var target = null;
+  for (var i = 0; i < G.competitors.length; i++) {
+    if (G.competitors[i].id === competitorId) { target = G.competitors[i]; break; }
+  }
+  if (!target || !target.alive) return;
+
+  var cost = getPartnershipCost(target);
+  var targetRep = target.reputation || Math.round(target.share * 4);
+  var repGain = Math.max(3, Math.round(targetRep / 5));
+
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+
+  title.textContent = 'PARTNERSHIP — ' + target.name.toUpperCase();
+
+  var html = '<div style="color:var(--cyan);margin-bottom:8px;">PARTNERSHIP BENEFITS:</div>' +
+    '<div class="negotiation-row"><span>Mutual no-poach agreement</span><span style="color:var(--green)">14 days</span></div>' +
+    '<div class="negotiation-row"><span>Reputation gain</span><span style="color:var(--green)">+' + repGain + ' rep</span></div>' +
+    '<div class="negotiation-row"><span>Market synergy</span><span style="color:var(--green)">Shared presence</span></div>' +
+    '<div style="margin-top:10px;color:var(--amber);margin-bottom:4px;">COST: $' + cost.toLocaleString() + '</div>' +
+    '<div style="color:var(--red);font-size:0.7rem;margin-top:8px;">Partnership attempts are not guaranteed. Failed attempts cost no money but lose 3.5% of your reputation.</div>';
+
+  desc.innerHTML = html;
+  choices.innerHTML = '';
+
+  var btnAttempt = document.createElement('button');
+  btnAttempt.className = 'btn btn-primary';
+  btnAttempt.textContent = 'ATTEMPT PARTNERSHIP';
+  btnAttempt.disabled = G.cash < cost || !canAct(2);
+  btnAttempt.onclick = function() {
+    modal.style.display = 'none';
+    attemptPartnership(competitorId);
+  };
+  choices.appendChild(btnAttempt);
+
+  var btnCancel = document.createElement('button');
+  btnCancel.className = 'btn btn-secondary';
+  btnCancel.textContent = 'CANCEL';
+  btnCancel.onclick = function() { modal.style.display = 'none'; };
+  choices.appendChild(btnCancel);
+
+  modal.style.display = 'flex';
+}
+
+function attemptPartnership(competitorId) {
   var target = null;
   for (var i = 0; i < G.competitors.length; i++) {
     if (G.competitors[i].id === competitorId) { target = G.competitors[i]; break; }
   }
   if (!target || !target.alive) return false;
 
-  var cost = getPartnershipCost(target);
-  if (G.cash < cost) {
-    addLog('Can\'t afford partnership with ' + target.name + '. Need $' + cost.toLocaleString() + '.', 'bad');
+  if (!canPartnerWith(target)) {
+    addLog('Cannot partner with ' + target.name + ' right now.', 'warn');
     return false;
   }
 
-  G.cash -= cost;
-  recordTransaction('expense', 'operations', cost, 'Partnership: ' + target.name);
+  var cost = getPartnershipCost(target);
+  if (G.cash < cost) {
+    addLog('Can\'t afford partnership with ' + target.name + '.', 'bad');
+    return false;
+  }
 
-  // Rep gain based on competitor's reputation
-  var targetRep = target.reputation || Math.round(target.share * 4);
-  var repGain = Math.max(3, Math.round(targetRep / 5));
-  G.reputation += repGain;
+  spendAP(2);
+  spendEnergy(10);
 
-  // Mutual no-poach: mark partner
-  target.isPartner = true;
-  target.partnerDay = G.day;
+  var chance = getPartnershipChance(target);
+  var roll = Math.random() * 100;
 
-  addLog('Strategic partnership with ' + target.name + '! +' + repGain + ' rep. Mutual no-poach agreement.', 'good');
-  G.marketEvents.push({ day: G.day, text: 'New partnership: You + ' + target.name });
-  return true;
+  if (roll < chance) {
+    // Success
+    G.cash -= cost;
+    if (typeof recordTransaction === 'function') {
+      recordTransaction('expense', 'operations', cost, 'Partnership: ' + target.name);
+    }
+    var targetRep = target.reputation || Math.round(target.share * 4);
+    var repGain = Math.max(3, Math.round(targetRep / 5));
+    G.reputation += repGain;
+    target.isPartner = true;
+    target.partnerDay = G.day;
+    addLog('Strategic partnership with ' + target.name + '! +' + repGain + ' rep. Mutual no-poach agreement.', 'good');
+    G.marketEvents.push({ day: G.day, text: 'New partnership: You + ' + target.name });
+    showActionConfirmation('Partnership formed with ' + target.name + '! +' + repGain + ' rep.', 'good', function() {
+      afterAction();
+    });
+    return true;
+  } else {
+    // Failed — no money spent, lose 3.5% reputation
+    var repLoss = Math.max(1, Math.round(G.reputation * 0.035));
+    G.reputation = Math.max(0, G.reputation - repLoss);
+    addLog('Partnership attempt with ' + target.name + ' failed. -' + repLoss + ' rep.', 'bad');
+    showActionConfirmation('Partnership attempt with ' + target.name + ' failed. -' + repLoss + ' reputation.', 'bad', function() {
+      afterAction();
+    });
+    return false;
+  }
 }

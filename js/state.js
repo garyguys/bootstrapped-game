@@ -205,6 +205,12 @@ function loadGame() {
         if (c.isDiamond === undefined) c.isDiamond = false;
       });
     }
+    // v0.16: Add partnerExpiredDay to competitors
+    if (G.competitors) {
+      G.competitors.forEach(function(c) {
+        if (c.partnerExpiredDay === undefined) c.partnerExpiredDay = 0;
+      });
+    }
     return true;
   } catch (e) {
     console.warn('Load failed:', e);

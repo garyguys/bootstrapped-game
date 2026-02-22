@@ -942,6 +942,17 @@ var OVERNIGHT_EVENTS = [
       return (past ? past.client : 'A past client') + ' published a glowing testimonial. +' + rep + ' rep.';
     }
   },
+  // v0.16: Late night gaming
+  {
+    id: 'late_night_gaming',
+    name: 'Late Night Gaming',
+    condition: function() { return G.day >= 5; },
+    weight: 1,
+    effect: function() {
+      G._lateNightGaming = true;
+      return 'You stayed up way too late gaming. Energy recovery will be reduced tomorrow.';
+    }
+  },
 ];
 
 // --- Event System ---

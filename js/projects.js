@@ -468,10 +468,29 @@ function workOnOwnProduct(productId) {
 
   if (product.devDaysWorked >= product.devDaysRequired) {
     product.status = 'live';
-    product.quality = 75;
-    addLog('"' + product.name + '" launched! It\'s live and generating revenue.', 'good');
+    // v0.16: Team-influenced quality (solo build = 70)
+    var wLaunchQuality = 70;
+    var wLaunchTeamNames = [];
+    var wLaunchAvgSkill = 0;
+    if (product.assignedTeam && product.assignedTeam.length > 0) {
+      var wTotalTech = 0;
+      for (var wi = 0; wi < product.assignedTeam.length; wi++) {
+        var wEmp = findEmployee(product.assignedTeam[wi]);
+        if (wEmp) {
+          wTotalTech += wEmp.technical;
+          wLaunchTeamNames.push(wEmp.name);
+        }
+      }
+      wLaunchAvgSkill = wLaunchTeamNames.length > 0 ? wTotalTech / wLaunchTeamNames.length : 0;
+      wLaunchQuality = Math.min(95, 60 + Math.round(wLaunchAvgSkill * 2));
+    }
+    product.quality = wLaunchQuality;
+    addLog('"' + product.name + '" launched! Quality: ' + wLaunchQuality + '%. It\'s live and generating revenue.', 'good');
     G.reputation += 5;
-    G.overnightEvents.push('"' + product.name + '" is live on the market!');
+    G._productLaunchData = {
+      name: product.name, quality: wLaunchQuality, interest: product.marketInterest,
+      maxRevenue: product.maxRevenue, teamNames: wLaunchTeamNames, avgSkill: wLaunchAvgSkill
+    };
   }
   return true;
 }
@@ -551,10 +570,30 @@ function tickProducts() {
         }
         if (p.devDaysWorked >= p.devDaysRequired) {
           p.status = 'live';
-          p.quality = 75;
-          addLog('"' + p.name + '" launched by your team! It\'s live.', 'good');
+          // v0.16: Team-influenced quality
+          var launchQuality = 70;
+          var launchTeamNames = [];
+          var launchAvgSkill = 0;
+          if (p.assignedTeam && p.assignedTeam.length > 0) {
+            var totalTech = 0;
+            for (var tqi = 0; tqi < p.assignedTeam.length; tqi++) {
+              var tqEmp = findEmployee(p.assignedTeam[tqi]);
+              if (tqEmp) {
+                totalTech += tqEmp.technical;
+                launchTeamNames.push(tqEmp.name);
+              }
+            }
+            launchAvgSkill = launchTeamNames.length > 0 ? totalTech / launchTeamNames.length : 0;
+            launchQuality = Math.min(95, 60 + Math.round(launchAvgSkill * 2));
+          }
+          p.quality = launchQuality;
+          addLog('"' + p.name + '" launched by your team! Quality: ' + launchQuality + '%.', 'good');
           G.reputation += 5;
           G.overnightEvents.push('"' + p.name + '" is now live!');
+          G._productLaunchData = {
+            name: p.name, quality: launchQuality, interest: p.marketInterest,
+            maxRevenue: p.maxRevenue, teamNames: launchTeamNames, avgSkill: launchAvgSkill
+          };
         }
       }
       continue;
@@ -691,6 +730,44 @@ function generateCompetitorProducts(style) {
     });
   }
   return products;
+}
+
+// v0.16: Calculate current daily income for a product
+function getProductDailyIncome(product) {
+  if (!product || product.status !== 'live' || product.quality <= 0) return 0;
+  var revenue = Math.round((product.quality / 100) * (product.marketInterest / 100) * product.maxRevenue);
+  if (G.upgrades && G.upgrades.indexOf('server_farm') !== -1) revenue = Math.round(revenue * 1.25);
+  if (G.upgrades && G.upgrades.indexOf('cloud_infra') !== -1) revenue = Math.round(revenue * 1.5);
+  return revenue;
+}
+
+// v0.16: Sell a product for lump sum, unassign team, set dead
+function sellProduct(productId) {
+  var product = null;
+  for (var i = 0; i < G.ownedProducts.length; i++) {
+    if (G.ownedProducts[i].id === productId) { product = G.ownedProducts[i]; break; }
+  }
+  if (!product || product.status !== 'live') return 0;
+
+  var dailyIncome = getProductDailyIncome(product);
+  var multiplier = randomInt(10, 30);
+  var lumpSum = dailyIncome * multiplier;
+
+  G.cash += lumpSum;
+  G.totalRevenue += lumpSum;
+  product.totalRevenue += lumpSum;
+  recordTransaction('income', 'product_sale', lumpSum, 'Sold "' + product.name + '" (' + multiplier + ' days income)');
+  addLog('Sold "' + product.name + '" for $' + lumpSum.toLocaleString() + '!', 'good');
+
+  // Unassign team
+  for (var k = 0; k < G.team.length; k++) {
+    if (product.assignedTeam && product.assignedTeam.indexOf(G.team[k].id) !== -1) {
+      G.team[k].assignedProductId = null;
+    }
+  }
+  product.assignedTeam = [];
+  product.status = 'dead';
+  return lumpSum;
 }
 
 function agePipelineLeads() {

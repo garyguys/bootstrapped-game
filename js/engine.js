@@ -306,6 +306,53 @@ function showWeeklyRecap() {
   modal.style.display = 'flex';
 }
 
+// v0.16: Product launch modal
+function showProductLaunchModal(data) {
+  var modal = document.getElementById('event-modal');
+  var title = document.getElementById('event-modal-title');
+  var desc = document.getElementById('event-modal-desc');
+  var choices = document.getElementById('event-modal-choices');
+
+  title.textContent = '"' + data.name + '" IS NOW LIVE!';
+
+  var grade = 'C';
+  var score = (data.quality + data.interest) / 2;
+  if (score >= 85) grade = 'S';
+  else if (score >= 75) grade = 'A';
+  else if (score >= 65) grade = 'B';
+  else if (score >= 50) grade = 'C';
+  else grade = 'D';
+
+  var gradeColor = { S: 'var(--amber)', A: 'var(--green)', B: 'var(--cyan)', C: 'var(--grey)', D: 'var(--red)' };
+
+  var dailyIncome = Math.round((data.quality / 100) * (data.interest / 100) * data.maxRevenue);
+
+  var html = '<div style="text-align:center;margin-bottom:12px;">' +
+    '<span style="font-size:1.8rem;color:' + (gradeColor[grade] || 'var(--green)') + ';">' + grade + '</span>' +
+    '<div style="color:var(--grey);font-size:0.7rem;">LAUNCH GRADE</div></div>' +
+    '<div class="negotiation-row"><span>Product Quality</span><span style="color:var(--green)">' + data.quality + '%</span></div>' +
+    '<div class="negotiation-row"><span>Market Interest</span><span style="color:var(--cyan)">' + data.interest + '%</span></div>' +
+    '<div class="negotiation-row"><span>Max Revenue</span><span style="color:var(--amber)">$' + data.maxRevenue.toLocaleString() + '/day</span></div>' +
+    '<div class="negotiation-row"><span>Projected Income</span><span style="color:var(--green)">$' + dailyIncome.toLocaleString() + '/day</span></div>';
+
+  if (data.teamNames && data.teamNames.length > 0) {
+    html += '<div class="negotiation-row"><span>Team</span><span>' + data.teamNames.join(', ') + '</span></div>' +
+      '<div class="negotiation-row"><span>Avg Team Skill</span><span>' + data.avgSkill.toFixed(1) + '/10</span></div>';
+  } else {
+    html += '<div class="negotiation-row"><span>Built by</span><span>You (solo)</span></div>';
+  }
+
+  desc.innerHTML = html;
+  choices.innerHTML = '';
+
+  var btn = document.createElement('button');
+  btn.className = 'btn btn-primary';
+  btn.textContent = 'LAUNCH!';
+  btn.onclick = function() { modal.style.display = 'none'; };
+  choices.appendChild(btn);
+  modal.style.display = 'flex';
+}
+
 function startNewDay() {
   G.day += 1;
   G.dayOfWeek = (G.dayOfWeek + 1) % 7;
@@ -333,6 +380,13 @@ function startNewDay() {
     G.energy = getSleepEnergyRecovery();
   }
 
+  // v0.16: Late night gaming reduces energy to 3/4
+  if (G._lateNightGaming) {
+    G.energy = Math.round(G.energy * 0.75);
+    G._lateNightGaming = false;
+    addLog('Feeling groggy after last night\'s gaming session...', 'warn');
+  }
+
   // Coffee machine bonus
   if (G.upgrades.indexOf('coffee_machine') !== -1) {
     G.energy = Math.min(G.energyMax, G.energy + 10);
@@ -351,6 +405,26 @@ function startNewDay() {
   // Weekend rest bonus
   if (G.dayOfWeek >= 5) {
     G.energy = Math.min(G.energyMax, G.energy + 10);
+  }
+
+  // v0.16: Partnership expiry check (14 days)
+  if (G.competitors) {
+    for (var pi = 0; pi < G.competitors.length; pi++) {
+      var pc = G.competitors[pi];
+      if (pc.isPartner && pc.partnerDay && G.day - pc.partnerDay >= 14) {
+        pc.isPartner = false;
+        pc.partnerExpiredDay = G.day;
+        addLog('Partnership with ' + pc.name + ' has expired.', 'warn');
+        G.overnightEvents.push('Partnership with ' + pc.name + ' expired after 14 days.');
+      }
+    }
+  }
+
+  // v0.16: Product launch screen
+  if (G._productLaunchData) {
+    var pld = G._productLaunchData;
+    G._productLaunchData = null;
+    showProductLaunchModal(pld);
   }
 
   // Generate pipeline if needed (guarantee solo-able project first 7 days)

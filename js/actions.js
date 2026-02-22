@@ -261,26 +261,24 @@ function actionFire(employeeId) {
 
 function actionAcquire(competitorId) {
   if (!canAct(AP_COSTS.acquire)) return;
-  // Open acquisition process modal — AP/energy spent on confirm
-  showAcquisitionProcessModal(competitorId);
+  // v0.16: "Are you sure?" confirmation before opening process modal
+  var comp = null;
+  for (var i = 0; i < G.competitors.length; i++) {
+    if (G.competitors[i].id === competitorId) { comp = G.competitors[i]; break; }
+  }
+  if (!comp) return;
+  var cost = typeof getAcquisitionCost === 'function' ? getAcquisitionCost(comp) : 50000;
+  showActionConfirmation('Acquire ' + comp.name + ' for $' + cost.toLocaleString() + '? This cannot be cancelled.', 'warn', function() {
+    showAcquisitionProcessModal(competitorId);
+  });
 }
 
 // --- Action: Strategic Partnership (2 AP) ---
 
 function actionPartnership(competitorId) {
   if (!canAct(2)) return;
-
-  var success = formPartnership(competitorId);
-  if (!success) return;
-
-  spendAP(2);
-  spendEnergy(10);
-
-  var comp = null;
-  for (var i = 0; i < G.competitors.length; i++) {
-    if (G.competitors[i].id === competitorId) { comp = G.competitors[i]; break; }
-  }
-  confirmThenAfterAction('Partnership formed with ' + (comp ? comp.name : 'competitor') + '!', 'good');
+  // v0.16: Show partnership preview modal (chance-based system)
+  showPartnershipPreview(competitorId);
 }
 
 // --- Action: Scout competitor ---
@@ -339,23 +337,62 @@ function actionCreateProduct(typeId, scopeId, productName) {
 
 // --- Action: Invest AP into product greenlight phase (1 AP) ---
 
-function actionInvestInProduct(productId) {
-  if (!canAct(1)) return;
+function actionInvestInProduct(productId, apAmount) {
+  apAmount = apAmount || 1;
   var product = G.ownedProducts.find(function(p) { return p.id === productId; });
   if (!product || product.status !== 'greenlight') return;
 
-  spendAP(1);
-  spendEnergy(ENERGY_COSTS.work_project);
-  product.apInvested = (product.apInvested || 0) + 1;
+  var apNeeded = (product.apRequired || 12) - (product.apInvested || 0);
+  apAmount = Math.min(apAmount, apNeeded, G.apCurrent);
+  if (apAmount < 1 || !canAct(apAmount)) return;
+
+  spendAP(apAmount);
+  spendEnergy(ENERGY_COSTS.work_project * apAmount);
+  product.apInvested = (product.apInvested || 0) + apAmount;
 
   if (product.apInvested >= product.apRequired) {
     product.status = 'building';
     addLog('"' + product.name + '" greenlighted! Development begins.', 'good');
     confirmThenAfterAction('"' + product.name + '" greenlighted! Team can now build it.', 'good');
   } else {
-    addLog('"' + product.name + '": ' + product.apInvested + '/' + product.apRequired + ' AP towards greenlight.', 'info');
+    addLog('"' + product.name + '": ' + product.apInvested + '/' + product.apRequired + ' AP towards greenlight. (+' + apAmount + ' AP)', 'info');
     afterAction();
   }
+}
+
+// --- Action: Sell product for lump sum ---
+
+function actionSellProduct(productId) {
+  var product = G.ownedProducts.find(function(p) { return p.id === productId; });
+  if (!product || product.status !== 'live') return;
+  if (!canAct(1)) return;
+
+  var dailyIncome = Math.round((product.quality / 100) * (product.marketInterest / 100) * product.maxRevenue);
+  if (G.upgrades && G.upgrades.indexOf('server_farm') !== -1) dailyIncome = Math.round(dailyIncome * 1.25);
+  if (G.upgrades && G.upgrades.indexOf('cloud_infra') !== -1) dailyIncome = Math.round(dailyIncome * 1.5);
+
+  var days = randomInt(10, 30);
+  var lumpSum = dailyIncome * days;
+  if (lumpSum < 100) lumpSum = 100; // Minimum floor
+
+  showActionConfirmation('Sell "' + product.name + '" for $' + lumpSum.toLocaleString() + '? (' + days + ' days of income). This is permanent.', 'warn', function() {
+    spendAP(1);
+    G.cash += lumpSum;
+    if (typeof recordTransaction === 'function') {
+      recordTransaction('income', 'product_sale', lumpSum, 'Sold: ' + product.name);
+    }
+    product.status = 'dead';
+    // Unassign team
+    if (product.assignedTeam) {
+      for (var k = 0; k < G.team.length; k++) {
+        if (product.assignedTeam.indexOf(G.team[k].id) !== -1) {
+          G.team[k].assignedProductId = null;
+        }
+      }
+    }
+    addLog('Sold "' + product.name + '" for $' + lumpSum.toLocaleString() + '!', 'good');
+    afterAction();
+  });
 }
 
 // --- Action: Work on own product (1 AP) ---

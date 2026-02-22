@@ -255,8 +255,8 @@ select.create-input option {
 
 .create-preview {
   image-rendering: pixelated;
-  width: 60px;
-  height: 84px;
+  width: 64px;
+  height: 96px;
   border: 1px solid var(--panel-border);
   background: var(--grey-dark);
   display: block;
@@ -1422,8 +1422,8 @@ select.create-input option {
 
 .person-avatar {
   flex-shrink: 0;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
