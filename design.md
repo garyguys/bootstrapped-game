@@ -542,6 +542,15 @@ Bankruptcy threshold: $5,000 debt with inability to pay.
 
 **Win:** Reach Market Leader stage (2,000 reputation)
 
+**Victory Screen:**
+- Dedicated victory modal with animated star, glowing title, and particle celebration
+- Primary stats grid (6 cells): Days, Total Revenue, Reputation, Cash on Hand, Team Size, Projects Delivered
+- Highlight rows: Weeks in Business, Live Products, Product Revenue, Weekly Payroll, Companies Acquired, Upgrades Purchased, Best Client
+- Random victory quote from pool of 6
+- Two buttons: "KEEP PLAYING" (dismisses modal, game continues) and "NEW GAME" (returns to title)
+- Animated particles (50 colored dots floating upward) spawn on the backdrop
+- Game does NOT end — player can keep playing after winning
+
 **Lose:**
 - Cash hits $0 and debt is maxed
 - Tier 4 debt unpaid for 7+ days
@@ -689,7 +698,7 @@ Separate tab (beside Help) for testing. Features:
 - **AP Pips:** Filled/empty dots showing remaining AP
 - **End Day button:** Always visible, sticky footer
 - **Animations:** Scanline wipe on day transition, slide-in for events, pulse on danger states
-- **Modals:** event-modal (interactive day events), confirmation-modal, negotiation-modal, company-modal, assign-modal, product-create-modal, product-launch-modal
+- **Modals:** event-modal (interactive day events), confirmation-modal, negotiation-modal, company-modal, assign-modal, product-create-modal, product-launch-modal, victory-modal
 - **Skill bar colors:** Red (1-3), Yellow (4-7), Green (8-9), Light Blue (perfect 10)
 - **Role colors in assign modal:** Developer blue, Designer purple, Marketer orange, Sales gold, DevOps red, PM teal
 - **Notifications:** Popup when new candidates appear in hiring pipeline
@@ -723,6 +732,11 @@ Future updates may incorporate AI-generated music and sound effects to enhance t
 - Tutorial modal with cyan badge, step counter, tab switching, and UI element highlighting
 - Skippable at any step; progress saved across sessions
 - State migration for existing saves (tutorial defaults to complete)
+- Randomize button on character creation (preserves gender selection)
+- Overhauled victory screen: dedicated modal with animated star, particle effects, rich stats grid
+- Victory highlights: weeks in business, live products, product revenue, payroll, acquisitions, upgrades, best client
+- Random victory quotes and animated celebration particles
+- "KEEP PLAYING" option — game continues after winning instead of ending abruptly
 
 ### v0.16.3
 - Female hair distribution rebalanced: ponytail 40%, long 35%, short 18%, bald 7%

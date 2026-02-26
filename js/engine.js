@@ -745,33 +745,178 @@ function checkStageProgression() {
 // --- Win / Game-Over Screens ---
 
 function showWinScreen() {
-  var modal = document.getElementById('event-modal');
-  var title = document.getElementById('event-modal-title');
-  var desc = document.getElementById('event-modal-desc');
-  var choices = document.getElementById('event-modal-choices');
+  var modal = document.getElementById('victory-modal');
+  if (!modal) return;
 
-  title.textContent = 'YOU WIN — MARKET LEADER';
-  desc.innerHTML =
-    '<strong>' + escHtml(G.player ? G.player.companyName : 'Your Company') + '</strong> has become a Market Leader!<br><br>' +
-    'Days played: <span style="color:var(--cyan)">' + G.day + '</span><br>' +
-    'Total revenue: <span style="color:var(--green)">$' + G.totalRevenue.toLocaleString() + '</span><br>' +
-    'Final reputation: <span style="color:var(--cyan)">' + G.reputation + ' rep</span><br>' +
-    'Team size: <span style="color:var(--cyan)">' + G.team.length + ' employee(s)</span><br>' +
-    'Projects completed: <span style="color:var(--cyan)">' + G.completedProjects.length + '</span><br><br>' +
-    '<span style="color:var(--amber)">You bootstrapped from $500 to a market-dominating company. Impressive.</span>';
+  // Company name
+  var companyEl = document.getElementById('victory-company-name');
+  companyEl.textContent = G.player ? G.player.companyName : 'Your Company';
 
-  choices.innerHTML = '';
-  var btnNew = document.createElement('button');
-  btnNew.className = 'btn btn-primary btn-small';
-  btnNew.textContent = 'NEW GAME';
-  btnNew.onclick = function() {
+  // Compute stats
+  var weeks = Math.ceil(G.day / 7);
+  var totalPayroll = 0;
+  for (var ti = 0; ti < G.team.length; ti++) {
+    totalPayroll += G.team[ti].salary || 0;
+  }
+  var weeklyPayroll = totalPayroll;
+
+  var liveProducts = 0;
+  var productRevenue = 0;
+  if (G.ownedProducts) {
+    for (var pi = 0; pi < G.ownedProducts.length; pi++) {
+      if (G.ownedProducts[pi].status === 'live') liveProducts++;
+      productRevenue += G.ownedProducts[pi].totalRevenue || 0;
+    }
+  }
+
+  var acquiredCount = G.acquiredStartups ? G.acquiredStartups.length : 0;
+  var upgradeCount = G.upgrades ? G.upgrades.length : 0;
+
+  // Best client
+  var bestClient = '';
+  var bestClientSpent = 0;
+  if (G.clients) {
+    for (var cname in G.clients) {
+      if (Object.prototype.hasOwnProperty.call(G.clients, cname)) {
+        if (G.clients[cname].totalSpent > bestClientSpent) {
+          bestClientSpent = G.clients[cname].totalSpent;
+          bestClient = cname;
+        }
+      }
+    }
+  }
+
+  // Primary stats grid
+  var statsEl = document.getElementById('victory-stats');
+  statsEl.innerHTML =
+    '<div class="victory-stat">' +
+      '<span class="victory-stat-value">' + G.day + '</span>' +
+      '<span class="victory-stat-label">Days</span>' +
+    '</div>' +
+    '<div class="victory-stat">' +
+      '<span class="victory-stat-value">$' + G.totalRevenue.toLocaleString() + '</span>' +
+      '<span class="victory-stat-label">Total Revenue</span>' +
+    '</div>' +
+    '<div class="victory-stat">' +
+      '<span class="victory-stat-value">' + G.reputation + '</span>' +
+      '<span class="victory-stat-label">Reputation</span>' +
+    '</div>' +
+    '<div class="victory-stat">' +
+      '<span class="victory-stat-value">$' + G.cash.toLocaleString() + '</span>' +
+      '<span class="victory-stat-label">Cash on Hand</span>' +
+    '</div>' +
+    '<div class="victory-stat">' +
+      '<span class="victory-stat-value">' + G.team.length + '</span>' +
+      '<span class="victory-stat-label">Team Size</span>' +
+    '</div>' +
+    '<div class="victory-stat">' +
+      '<span class="victory-stat-value">' + G.completedProjects.length + '</span>' +
+      '<span class="victory-stat-label">Projects Delivered</span>' +
+    '</div>';
+
+  // Highlights section
+  var highlightsEl = document.getElementById('victory-highlights');
+  var highlightRows = '';
+
+  if (weeks > 0) {
+    highlightRows += '<div class="victory-highlight-row">' +
+      '<span class="victory-highlight-label">Weeks in Business</span>' +
+      '<span class="victory-highlight-value">' + weeks + '</span></div>';
+  }
+  if (liveProducts > 0) {
+    highlightRows += '<div class="victory-highlight-row">' +
+      '<span class="victory-highlight-label">Live Products</span>' +
+      '<span class="victory-highlight-value">' + liveProducts + '</span></div>';
+  }
+  if (productRevenue > 0) {
+    highlightRows += '<div class="victory-highlight-row">' +
+      '<span class="victory-highlight-label">Product Revenue</span>' +
+      '<span class="victory-highlight-value">$' + productRevenue.toLocaleString() + '</span></div>';
+  }
+  if (weeklyPayroll > 0) {
+    highlightRows += '<div class="victory-highlight-row">' +
+      '<span class="victory-highlight-label">Weekly Payroll</span>' +
+      '<span class="victory-highlight-value">$' + weeklyPayroll.toLocaleString() + '/wk</span></div>';
+  }
+  if (acquiredCount > 0) {
+    highlightRows += '<div class="victory-highlight-row">' +
+      '<span class="victory-highlight-label">Companies Acquired</span>' +
+      '<span class="victory-highlight-value">' + acquiredCount + '</span></div>';
+  }
+  if (upgradeCount > 0) {
+    highlightRows += '<div class="victory-highlight-row">' +
+      '<span class="victory-highlight-label">Upgrades Purchased</span>' +
+      '<span class="victory-highlight-value">' + upgradeCount + '</span></div>';
+  }
+  if (bestClient) {
+    highlightRows += '<div class="victory-highlight-row">' +
+      '<span class="victory-highlight-label">Best Client</span>' +
+      '<span class="victory-highlight-value">' + escHtml(bestClient) + '</span></div>';
+  }
+
+  highlightsEl.innerHTML = highlightRows;
+
+  // Victory quote
+  var quotes = [
+    'From $500 and a dream to the top of the market. Not bad, founder.',
+    'They said it couldn\'t be done. You didn\'t listen.',
+    'Every late night, every tough call, every risk — it all led here.',
+    'The market bows to ' + escHtml(G.player ? G.player.companyName : 'you') + '.',
+    'You didn\'t just build a company. You built a legacy.',
+    '$500 to Market Leader. The ultimate bootstrap.',
+  ];
+  var quoteEl = document.getElementById('victory-quote');
+  quoteEl.textContent = quotes[Math.floor(Math.random() * quotes.length)];
+
+  // Buttons
+  document.getElementById('victory-continue').onclick = function() {
     modal.style.display = 'none';
+    // Clear particles
+    var backdrop = modal.querySelector('.victory-backdrop');
+    if (backdrop) backdrop.innerHTML = '';
+  };
+
+  document.getElementById('victory-new-game').onclick = function() {
+    modal.style.display = 'none';
+    var backdrop = modal.querySelector('.victory-backdrop');
+    if (backdrop) backdrop.innerHTML = '';
     var screens = document.querySelectorAll('.screen');
-    for (var i = 0; i < screens.length; i++) screens[i].classList.remove('active');
+    for (var si = 0; si < screens.length; si++) screens[si].classList.remove('active');
     document.getElementById('screen-title').classList.add('active');
   };
-  choices.appendChild(btnNew);
+
   modal.style.display = 'flex';
+
+  // Spawn celebration particles
+  _spawnVictoryParticles(modal.querySelector('.victory-backdrop'));
+}
+
+function _spawnVictoryParticles(container) {
+  if (!container) return;
+  container.innerHTML = '';
+  var colors = ['#ffaa00', '#00ff41', '#00e5ff', '#ffe066', '#ff6633', '#cc66ff'];
+  var count = 50;
+
+  for (var i = 0; i < count; i++) {
+    (function(idx) {
+      setTimeout(function() {
+        var p = document.createElement('div');
+        p.className = 'victory-particle';
+        p.style.left = (Math.random() * 100) + '%';
+        p.style.bottom = '-5px';
+        p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        p.style.animationDuration = (2 + Math.random() * 2) + 's';
+        p.style.animationDelay = '0s';
+        p.style.width = (2 + Math.random() * 4) + 'px';
+        p.style.height = p.style.width;
+        container.appendChild(p);
+        // Clean up after animation
+        setTimeout(function() {
+          if (p.parentNode) p.parentNode.removeChild(p);
+        }, 4500);
+      }, idx * 80);
+    })(i);
+  }
 }
 
 function showGameOverScreen(reason) {
