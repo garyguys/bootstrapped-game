@@ -136,6 +136,11 @@ function createDefaultState() {
     // v0.10: Food cooldowns
     lastRetreatDay: -99,
     mealPrepCharges: 0,
+
+    // Tutorial
+    tutorialEnabled: false,
+    tutorialStep: 0,
+    tutorialComplete: false,
   };
 }
 
@@ -236,6 +241,10 @@ function loadGame() {
       delete G.player.shoeColor;
     }
     // v0.16.2: Ensure team/candidates have new appearance properties (hash-based fallback in avatars.js handles missing props)
+    // v0.17: Tutorial system
+    if (G.tutorialEnabled === undefined) G.tutorialEnabled = false;
+    if (G.tutorialStep === undefined) G.tutorialStep = 0;
+    if (G.tutorialComplete === undefined) G.tutorialComplete = false;
     return true;
   } catch (e) {
     console.warn('Load failed:', e);

@@ -20,7 +20,7 @@
         <button id="btn-new-game" class="btn btn-primary">NEW GAME</button>
         <button id="btn-continue" class="btn btn-secondary" style="display:none;">CONTINUE</button>
       </div>
-      <p class="title-version">v0.16.3</p>
+      <p class="title-version">v0.17</p>
     </div>
     <div class="scanline-overlay"></div>
   </div>
@@ -60,6 +60,7 @@
             <span id="acc-label">none</span>
             <button class="btn btn-small btn-secondary" id="acc-next">&#9654;</button>
           </div>
+          <button id="btn-randomize" class="btn btn-small btn-randomize">RANDOMIZE</button>
         </div>
 
         <!-- Right: Form -->
@@ -117,6 +118,14 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="create-field" style="margin-top:1rem;">
+        <label class="create-label tutorial-toggle-label">
+          <input type="checkbox" id="create-tutorial-toggle" checked>
+          <span class="tutorial-toggle-text">ENABLE TUTORIAL</span>
+          <span class="tutorial-toggle-hint">Guided walkthrough of game mechanics</span>
+        </label>
       </div>
 
       <div class="title-buttons" style="margin-top:1.5rem;">
@@ -387,6 +396,22 @@
     <!-- COMPANY MODAL -->
     <div id="company-modal" class="modal" style="display:none;">
       <div class="company-modal-content"></div>
+    </div>
+
+    <!-- TUTORIAL MODAL -->
+    <div id="tutorial-modal" class="modal" style="display:none;">
+      <div class="modal-content tutorial-modal-content">
+        <div class="tutorial-header">
+          <span id="tutorial-step-indicator" class="tutorial-step-indicator">1 / 8</span>
+          <span class="tutorial-badge">TUTORIAL</span>
+        </div>
+        <h3 id="tutorial-title"></h3>
+        <div id="tutorial-body" class="tutorial-body"></div>
+        <div class="tutorial-nav">
+          <button id="tutorial-skip" class="btn btn-small btn-danger">SKIP TUTORIAL</button>
+          <button id="tutorial-next" class="btn btn-small btn-primary">NEXT</button>
+        </div>
+      </div>
     </div>
 
     <div class="scanline-overlay"></div>

@@ -1900,6 +1900,168 @@ var UI = {
     var target = document.getElementById('tab-' + tabName);
     if (target) target.classList.add('active');
   },
+
+  // ============================================
+  // Tutorial System
+  // ============================================
+
+  TUTORIAL_STEPS: [
+    {
+      title: 'WELCOME TO BOOTSTRAPPED',
+      body: '<p>You just quit your job with <span class="tutorial-highlight">$500</span> and a dream. Your goal: build a tech company from nothing to <span class="tutorial-highlight">Market Leader</span>.</p>' +
+            '<p>This tutorial will walk you through the key systems. You can skip it at any time.</p>' +
+            '<p class="tutorial-tip">Tip: You can always review mechanics in the Help tab later.</p>',
+      highlight: null
+    },
+    {
+      title: 'ACTION POINTS (AP)',
+      body: '<p>Each day you have <span class="tutorial-highlight">4 Action Points</span>. Every major action costs AP.</p>' +
+            '<p>The <span class="tutorial-key">AP</span> pips in the header show how many you have left. When they run out, your day is done.</p>' +
+            '<p>Some actions are free, like buying food. Others cost 1-2 AP. Big moves like acquisitions cost even more.</p>' +
+            '<p class="tutorial-tip">Tip: Upgrades and team members can increase your daily AP cap.</p>',
+      highlight: 'header-ap'
+    },
+    {
+      title: 'ENERGY (NRG)',
+      body: '<p>Your <span class="tutorial-highlight">Energy</span> bar tracks your stamina. Actions drain energy, and low energy causes problems.</p>' +
+            '<p>Below 25% energy, your work quality drops. At 0%, the day ends immediately.</p>' +
+            '<p>Buy <span class="tutorial-highlight">food from the Shop</span> to restore energy during the day. Sleep restores most of it overnight.</p>' +
+            '<p class="tutorial-tip">Tip: As your team and projects grow, sleep recovery decreases. Budget for food!</p>',
+      highlight: 'header-energy-bar'
+    },
+    {
+      title: 'PROJECTS & MONEY',
+      body: '<p>The <span class="tutorial-highlight">Projects tab</span> is where you make money. Your pipeline shows available client jobs.</p>' +
+            '<p><span class="tutorial-key">Accept</span> a project to start working on it, then use <span class="tutorial-key">Work 1AP</span> to make progress. Deliver before the deadline for reputation and cash.</p>' +
+            '<p>Later, you can build your own products for passive daily revenue.</p>' +
+            '<p class="tutorial-tip">Tip: Start with simple Landing Pages and WordPress Sites. They pay less but are easy to deliver solo.</p>',
+      highlight: null,
+      tab: 'projects'
+    },
+    {
+      title: 'HIRING YOUR TEAM',
+      body: '<p>Once you reach <span class="tutorial-highlight">Home Office</span> stage (25 reputation), you can hire employees.</p>' +
+            '<p>Post a job listing (2 AP), interview candidates to reveal their skills, negotiate salary, then hire.</p>' +
+            '<p>Assigned team members work on projects automatically each day. The better their <span class="tutorial-key">TEC</span> skill, the faster they work.</p>' +
+            '<p class="tutorial-tip">Tip: Keep an eye on loyalty. Unhappy employees quit! Throw parties and buy food to keep morale up.</p>',
+      highlight: null,
+      tab: 'team'
+    },
+    {
+      title: 'THE MARKET',
+      body: '<p>You are not alone. <span class="tutorial-highlight">AI competitors</span> are building companies too.</p>' +
+            '<p><span class="tutorial-key">Scout</span> competitors to learn about their teams and products. You can <span class="tutorial-key">poach</span> their employees, form <span class="tutorial-key">partnerships</span>, or even <span class="tutorial-key">acquire</span> smaller startups.</p>' +
+            '<p class="tutorial-tip">Tip: Partnerships give mutual benefits. Acquisitions are expensive but can grow your team and product lineup fast.</p>',
+      highlight: null,
+      tab: 'market'
+    },
+    {
+      title: 'SHOP & UPGRADES',
+      body: '<p>The <span class="tutorial-highlight">Shop</span> has three sections:</p>' +
+            '<p><span class="tutorial-key">Food</span> restores energy and boosts team loyalty. No AP cost!</p>' +
+            '<p><span class="tutorial-key">Upgrades</span> are permanent improvements: extra AP, faster work speed, better energy recovery, and more.</p>' +
+            '<p><span class="tutorial-key">Training</span> improves your personal founder skills.</p>' +
+            '<p class="tutorial-tip">Tip: The Coffee Machine and Second Monitor are excellent early upgrades.</p>',
+      highlight: null,
+      tab: 'shop'
+    },
+    {
+      title: 'YOUR FIRST DAY',
+      body: '<p>Here is your game plan for Day 1:</p>' +
+            '<p>1. Go to the <span class="tutorial-highlight">Projects</span> tab and accept a project from your pipeline</p>' +
+            '<p>2. Use <span class="tutorial-highlight">Work 1AP</span> on that project to start making progress</p>' +
+            '<p>3. When you run out of AP, hit <span class="tutorial-highlight">SLEEP & END DAY</span> to advance to tomorrow</p>' +
+            '<p>Build reputation by delivering projects on time. Reach <span class="tutorial-key">2,000 reputation</span> to become Market Leader and win!</p>' +
+            '<p class="tutorial-tip">Good luck, founder. The startup world is waiting.</p>',
+      highlight: null,
+      tab: 'dashboard'
+    }
+  ],
+
+  showTutorial: function() {
+    if (!G.tutorialEnabled || G.tutorialComplete) return;
+    this._showTutorialStep(G.tutorialStep);
+  },
+
+  _showTutorialStep: function(stepIdx) {
+    var steps = this.TUTORIAL_STEPS;
+    if (stepIdx >= steps.length) {
+      this._completeTutorial();
+      return;
+    }
+
+    var step = steps[stepIdx];
+    var modal = document.getElementById('tutorial-modal');
+    if (!modal) return;
+
+    // Update step indicator
+    document.getElementById('tutorial-step-indicator').textContent = (stepIdx + 1) + ' / ' + steps.length;
+    document.getElementById('tutorial-title').textContent = step.title;
+    document.getElementById('tutorial-body').innerHTML = step.body;
+
+    // Update button text on last step
+    var nextBtn = document.getElementById('tutorial-next');
+    if (stepIdx === steps.length - 1) {
+      nextBtn.textContent = 'GOT IT!';
+    } else {
+      nextBtn.textContent = 'NEXT';
+    }
+
+    // Switch tab if step specifies one
+    if (step.tab) {
+      this.switchTab(step.tab);
+    }
+
+    // Clear previous highlight
+    this._clearTutorialHighlight();
+
+    // Apply highlight to target element
+    if (step.highlight) {
+      var target = document.getElementById(step.highlight);
+      if (target) {
+        target.classList.add('tutorial-highlight-pulse');
+      }
+    }
+
+    // Show modal
+    modal.style.display = 'flex';
+
+    // Wire up buttons
+    var self = this;
+
+    nextBtn.onclick = function() {
+      self._clearTutorialHighlight();
+      G.tutorialStep = stepIdx + 1;
+      saveGame();
+      if (G.tutorialStep >= steps.length) {
+        modal.style.display = 'none';
+        self._completeTutorial();
+      } else {
+        self._showTutorialStep(G.tutorialStep);
+      }
+    };
+
+    document.getElementById('tutorial-skip').onclick = function() {
+      self._clearTutorialHighlight();
+      modal.style.display = 'none';
+      self._completeTutorial();
+    };
+  },
+
+  _clearTutorialHighlight: function() {
+    var highlighted = document.querySelectorAll('.tutorial-highlight-pulse');
+    for (var i = 0; i < highlighted.length; i++) {
+      highlighted[i].classList.remove('tutorial-highlight-pulse');
+    }
+  },
+
+  _completeTutorial: function() {
+    G.tutorialComplete = true;
+    G.tutorialStep = this.TUTORIAL_STEPS.length;
+    saveGame();
+    // Return to dashboard
+    this.switchTab('dashboard');
+  },
 };
 
 // --- Company Profile Modal ---

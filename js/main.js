@@ -110,6 +110,43 @@
     document.getElementById('acc-label').textContent = ALL_ACCESSORIES[cc.accIdx];
   }
 
+  function randInt(max) {
+    return Math.floor(Math.random() * max);
+  }
+
+  function randomizeAppearance() {
+    // Keep current body type — randomize everything else
+    cc.skinTone      = randInt(AvatarGen.SKIN_TONES.length);
+    cc.hairColorIdx  = randInt(AvatarGen.HAIR_COLORS.length);
+    cc.shirtStyleIdx = randInt(AvatarGen.SHIRT_STYLES.length);
+    cc.shirtColorIdx = randInt(AvatarGen.SHIRT_COLORS.length);
+    cc.pantsStyleIdx = randInt(AvatarGen.PANTS_STYLES.length);
+    cc.pantsColorIdx = randInt(AvatarGen.PANTS_COLORS.length);
+    cc.shoeColorIdx  = randInt(AvatarGen.SHOE_COLORS.length);
+    cc.accIdx        = randInt(ALL_ACCESSORIES.length);
+
+    var hairStyles = getHairStyles();
+    cc.hairStyleIdx = randInt(hairStyles.length);
+
+    // Randomize skills — distribute all 8 points
+    cc.technical = 0;
+    cc.communication = 0;
+    cc.reliability = 0;
+    for (var i = 0; i < SKILL_POOL; i++) {
+      var r = randInt(3);
+      if (r === 0 && cc.technical < 8) { cc.technical++; }
+      else if (r === 1 && cc.communication < 8) { cc.communication++; }
+      else if (cc.reliability < 8) { cc.reliability++; }
+      else if (cc.technical < 8) { cc.technical++; }
+      else { cc.communication++; }
+    }
+
+    rebuildAllSwatches();
+    updateLabels();
+    updateSkillDisplay();
+    updateAvatarPreview();
+  }
+
   function initCharacterCreation() {
     // Reset cc state
     cc.bodyType      = 'male';
@@ -186,6 +223,12 @@
     // Color swatches
     rebuildAllSwatches();
 
+    // Randomize button
+    var btnRandomize = document.getElementById('btn-randomize');
+    if (btnRandomize) {
+      btnRandomize.onclick = function() { randomizeAppearance(); };
+    }
+
     // Skill buttons
     document.getElementById('tec-plus').onclick  = function() {
       if (cc.technical < 8 && cc.technical + cc.communication + cc.reliability < SKILL_POOL) { cc.technical++;    updateSkillDisplay(); }
@@ -259,6 +302,12 @@
     G.player.communication = cc.communication;
     G.player.reliability   = cc.reliability;
 
+    // Tutorial toggle
+    var tutorialCheckbox = document.getElementById('create-tutorial-toggle');
+    G.tutorialEnabled = tutorialCheckbox && tutorialCheckbox.checked;
+    G.tutorialStep = 0;
+    G.tutorialComplete = !G.tutorialEnabled;
+
     generatePipelineLeads(true);
     initMarket();
 
@@ -267,6 +316,11 @@
     saveGame();
     showScreen('screen-game');
     UI.renderAll();
+
+    // Show tutorial after a short delay so the game screen renders first
+    if (G.tutorialEnabled) {
+      setTimeout(function() { UI.showTutorial(); }, 400);
+    }
   }
 
   function continueGame() {
